@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="tw">
+<head>
+    <script>
+  // 請把下面的網址換成你在第三步產生的實際 Railway 網址，後面記得補上 /api
+  window.PIXEL_LOOT_API_BASE_URL = pixel-loot-backend-production.up.railway.app;
+</script>
+<script src="config.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Loot - Guild Library (Admin Dashboard)</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts for Retro & Thai feel -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-color: #0b0f14;
+            color: #f1f5f9;
+            image-rendering: pixelated;
+        }
+        
+        .pixel-font {
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        /* 8-bit Border Style with retro drop shadow */
+        .pixel-box-premium {
+            border: 4px solid #000;
+            background-color: #1a202c;
+            box-shadow: 6px 6px 0px rgba(0, 0, 0, 0.8);
+        }
+
+        .pixel-border-sm {
+            border: 2px solid #000;
+            box-shadow: 2px 2px 0px #000;
+        }
+
+        .pixel-btn-action {
+            border: 4px solid #000;
+            box-shadow: 4px 4px 0px #000;
+            transition: all 0.1s ease;
+        }
+
+        .pixel-btn-action:active {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0px #000;
+        }
+
+        /* CRT TV Effect overlay */
+        .crt-overlay {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.2) 50%);
+            background-size: 100% 4px;
+            z-index: 99;
+            pointer-events: none;
+            opacity: 0.25;
+        }
+
+        /* Flicker for Forbidden Gate */
+        @keyframes subtle-glow {
+            0%, 100% { border-color: #ef4444; }
+            50% { border-color: #f59e0b; }
+        }
+        .gate-danger-glow {
+            animation: subtle-glow 1s infinite;
+        }
+
+        /* Custom inputs for retro portal */
+        .pixel-input {
+            border: 3px solid #000;
+            background-color: #070a0e;
+            color: #10b981;
+        }
+        .pixel-input:focus {
+            border-color: #10b981;
+            outline: none;
+        }
+
+        /* Language Switcher Dropdown Style */
+        .lang-dropdown-content {
+            display: none;
+        }
+        .lang-dropdown:hover .lang-dropdown-content {
+            display: block;
+        }
+    </style>
+    <!-- Dynamic API Configuration -->
+    <script src="config.js"></script>
+</head>
+<body class="min-h-screen pb-12 relative overflow-y-auto">
+    
+    <div class="crt-overlay"></div>
+
+    <!-- LANGUAGE SWITCHER WIDGET (Fixed at top-right corner) -->
+    <div class="fixed top-4 right-4 z-50 lang-dropdown">
+        <button id="lang-active-btn" class="pixel-btn-action bg-slate-800 text-white px-3 py-2 text-xs font-bold flex items-center gap-2">
+            <span>🇹🇼</span> <span class="pixel-font text-[9px]">ZH</span> <span class="text-[9px]">▼</span>
+        </button>
+        <div class="lang-dropdown-content absolute right-0 mt-1 bg-slate-900 border-4 border-black shadow-[4px_4px_0px_#000] w-32 overflow-hidden">
+            <button onclick="changeLanguage('th')" class="w-full text-left px-3 py-2 hover:bg-slate-800 text-xs flex items-center gap-2 border-b-2 border-slate-950">
+                <span>🇹🇭</span> <span class="pixel-font text-[9px]">TH (ไทย)</span>
+            </button>
+            <button onclick="changeLanguage('en')" class="w-full text-left px-3 py-2 hover:bg-slate-800 text-xs flex items-center gap-2 border-b-2 border-slate-950">
+                <span>🇬🇧</span> <span class="pixel-font text-[9px]">EN (English)</span>
+            </button>
+            <button onclick="changeLanguage('tw')" class="w-full text-left px-3 py-2 hover:bg-slate-800 text-xs flex items-center gap-2">
+                <span>🇹🇼</span> <span class="pixel-font text-[9px]">繁中 (ZH)</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- 1. AUTH GATEKEEPER PORTAL (หน้าต่างตรวจสอบสิทธิ์แอดมินก่อนเข้าใช้งาน) -->
+    <div id="admin-auth-gate" class="min-h-screen flex flex-col items-center justify-center p-4">
+        <div class="w-full max-w-md pixel-box-premium p-6 text-center gate-danger-glow border-red-500">
+            <span class="text-6xl block mb-3">👹</span>
+            <h2 class="pixel-font text-red-500 text-sm mb-2" data-i18n="gatekeeper_title">GUILD GATEKEEPER</h2>
+            <p class="text-xs text-slate-400 mb-6 font-semibold uppercase" data-i18n="gatekeeper_subtitle">กรุณากรอกกุญแจวิเศษ (อีเมลแอดมิน) เพื่อเข้าถึงคลังข้อมูลกิลด์</p>
+            
+            <div class="space-y-4 text-left">
+                <div>
+                    <label class="block text-xs text-slate-400 font-bold mb-1" data-i18n="label_admin_email">ADMIN SECRET EMAIL</label>
+                    <input type="email" id="auth-admin-email" placeholder="ตัวอย่าง: 113121137@gms.tcu.edu.tw" class="w-full pixel-input p-3 text-sm focus:ring-0">
+                </div>
+                
+                <button onclick="verifyAdminAccess()" class="w-full pixel-btn-action bg-red-600 hover:bg-red-700 text-white py-3 text-xs font-bold pixel-font" data-i18n="btn_unlock">
+                    🛡️ UNLOCK GUILD GATE
+                </button>
+            </div>
+            
+            <p class="text-[10px] text-slate-500 font-mono mt-4" data-i18n="whitelist_active">🔒 HARDCODED ADMIN WHITELIST ACTIVE</p>
+        </div>
+    </div>
+
+    <!-- 2. MAIN ADMIN DASHBOARD (ห้องสมุดข้อมูลสมาชิกกิลด์ - แสดงเมื่อปลดล็อกสำเร็จ) -->
+    <div id="admin-main-dashboard" class="hidden max-w-6xl mx-auto px-4 mt-16 md:mt-8">
+        
+        <!-- Header -->
+        <header class="bg-slate-900 border-4 border-black p-4 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <span class="text-3xl">🔮</span>
+                <div>
+                    <h1 class="pixel-font text-yellow-400 text-lg md:text-xl" data-i18n="dashboard_title">GUILD USER LIBRARY</h1>
+                    <p class="text-xs text-emerald-400 font-semibold uppercase tracking-wider" data-i18n="dashboard_subtitle">ระบบจัดการทะเบียนผู้เล่นระดับเจ้ากิลด์ (Admin Panel)</p>
+                </div>
+            </div>
+            
+            <!-- Admin Profile Indicator -->
+            <div class="flex items-center gap-3 bg-slate-800 p-2 border-2 border-black rounded">
+                <div class="w-8 h-8 rounded border-2 border-black bg-slate-950 flex items-center justify-center text-md">🧙‍♂️</div>
+                <div class="text-xs">
+                    <div class="font-bold text-yellow-400" id="current-admin-name" data-i18n="role_guild_master">Guild Master</div>
+                    <div class="text-[9px] text-slate-400" id="current-admin-email">113121137@gms.tcu.edu.tw</div>
+                </div>
+                <button onclick="window.location.href='editor.html'" class="pixel-btn-action bg-indigo-600 text-white px-2 py-0.5 text-[9px] font-bold font-mono">🎨 編輯器</button>
+                <button onclick="lockDashboard()" class="pixel-btn-action bg-red-600 text-white px-2 py-0.5 text-[9px] font-bold font-mono" data-i18n="btn_lock">LOCK</button>
+            </div>
+        </header>
+
+        <!-- PIPELINE CONNECTION & SECURITY INDICATOR (เส้นขอบสีแดงแบ่งและแสดงการวิ่งของข้อมูลตามที่ระบุ) -->
+        <div class="mb-6 p-4 bg-slate-900 border-4 border-red-600 border-dashed relative">
+            <div class="absolute -top-3 left-4 bg-red-600 text-white text-[9px] pixel-font px-2 py-0.5 rounded" data-i18n="pipeline_indicator">
+                DATA PIPELINE & AUDIT SHIELD: ONLINE
+            </div>
+            <div class="flex flex-col md:flex-row justify-between items-center gap-2">
+                <div class="text-xs text-red-300">
+                    📡 <b class="pixel-font text-[10px]">login.html</b> ──[ <span data-i18n="pipeline_action">สมัครสมาชิก/สร้าง NEW HERO</span> ]──► <b>[ <span data-i18n="pipeline_realtime">ส่งข้อมูลเรียลไทม์</span> ]</b> ──► <b class="pixel-font text-[10px]">library.html</b>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
+                    <span class="text-xs text-red-400 font-bold uppercase font-mono" data-i18n="pipeline_status">Synced, Hashed, and Double-Key Guarded</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Overview -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-slate-900 border-4 border-black p-3 flex justify-between items-center">
+                <div>
+                    <span class="text-[10px] text-slate-400 font-bold uppercase block" data-i18n="stat_total_players">สมาชิกทั้งหมด</span>
+                    <span class="pixel-font text-lg text-emerald-400" id="stat-total-players">4</span>
+                </div>
+                <span class="text-3xl">👥</span>
+            </div>
+            <div class="bg-slate-900 border-4 border-black p-3 flex justify-between items-center">
+                <div>
+                    <span class="text-[10px] text-slate-400 font-bold uppercase block" data-i18n="stat_total_gold">ทองในระบบ</span>
+                    <span class="pixel-font text-lg text-yellow-400 font-mono" id="stat-total-gold">18,500</span>
+                </div>
+                <span class="text-3xl">💰</span>
+            </div>
+            <div class="bg-slate-900 border-4 border-black p-3 flex justify-between items-center">
+                <div>
+                    <span class="text-[10px] text-slate-400 font-bold uppercase block" data-i18n="stat_banned_count">แบนถาวร</span>
+                    <span class="pixel-font text-lg text-red-500" id="stat-banned-count">1</span>
+                </div>
+                <span class="text-3xl">💀</span>
+            </div>
+            <div class="bg-slate-900 border-4 border-black p-3 flex justify-between items-center">
+                <div>
+                    <span class="text-[10px] text-slate-400 font-bold uppercase block" data-i18n="stat_total_bids">ยอดประมูลรวม</span>
+                    <span class="pixel-font text-lg text-purple-400" id="stat-total-bids">12</span>
+                </div>
+                <span class="text-3xl">⚔️</span>
+            </div>
+        </div>
+
+        <!-- SEARCH BAR -->
+        <div class="bg-slate-800 p-4 border-4 border-black mb-6 flex flex-col md:flex-row gap-4 justify-between items-center">
+            <div class="relative w-full md:max-w-md">
+                <input type="text" id="player-search" oninput="filterPlayers()" placeholder="🔍 ค้นหาด้วยชื่อผู้เล่น หรือ UID..." data-i18n-placeholder="search_placeholder" class="w-full bg-slate-950 border-2 border-slate-700 p-2 text-sm text-yellow-400 focus:outline-none focus:border-yellow-500 rounded">
+            </div>
+            <div class="text-xs text-slate-400 font-bold" data-i18n="banish_note">
+                * คลิก <b class="text-red-400">BANISH</b> เพื่อระงับสิทธิ์ในการเข้าร่วมประมูลสินค้า
+            </div>
+        </div>
+
+        <!-- PLAYER DIRECTORY GRID -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="player-directory-container">
+            <!-- Dynamic player elements populated by JS -->
+        </div>
+
+    </div>
+
+    <!-- QUEST LOG STEP-UP SECURITY MODAL (กล่องสมบัติล็อกกุญแจตรวจสอบสิทธิ์ชั้นที่สอง) -->
+    <div id="step-up-auth-modal" class="fixed inset-0 bg-black/95 flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-slate-900 p-6 max-w-sm w-full border-4 border-red-600 shadow-[6px_6px_0px_#000] text-center">
+            <span class="text-5xl block mb-2">🔒</span>
+            <h3 class="pixel-font text-xs text-red-500 mb-2" data-i18n="stepup_title">PROVE ADMIN AUTHORITY</h3>
+            <p class="text-xs text-slate-400 mb-6" data-i18n="stepup_subtitle">กรุณาระบุรหัสผ่านลับขั้นที่สอง (113121137) เพื่อปลดล็อกคลังข้อมูลเชิงลึกของผู้เล่น พร้อมส่งนกพิราบแจ้งเตือนและบันทึกประวัติ</p>
+            <input type="password" id="step-up-password" placeholder="ENTER PROOF KEY" data-i18n-placeholder="stepup_placeholder" class="w-full pixel-input p-3 text-sm text-center mb-6 focus:ring-0">
+            <div class="flex gap-2">
+                <button onclick="submitStepUpAuth()" class="flex-1 pixel-btn-action bg-red-600 text-white py-2 text-xs font-bold pixel-font" data-i18n="btn_unlock_stepup">UNLOCK</button>
+                <button onclick="cancelStepUp()" class="flex-1 pixel-btn-action bg-slate-700 text-slate-400 py-2 text-xs font-bold pixel-font" data-i18n="btn_cancel">CANCEL</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- QUEST LOG MODAL (แสดงเมื่อปลดล็อกสิทธิ์ชั้นที่สองผ่านแล้ว) -->
+    <div id="quest-log-modal" class="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-slate-900 p-6 max-w-lg w-full border-4 border-black shadow-[6px_6px_0px_#000]" id="quest-log-capture-target">
+            <div class="flex justify-between items-start mb-4 border-b-2 border-slate-700 pb-3">
+                <div class="flex items-center gap-3">
+                    <span class="text-3xl">📜</span>
+                    <div>
+                        <h3 class="pixel-font text-xs text-yellow-400" id="quest-modal-title" data-i18n="quest_log_header">PLAYER QUEST LOG</h3>
+                        <p class="text-xs text-slate-400" id="quest-modal-subtitle" data-i18n="quest_log_sub">ข้อมูลการสำรวจกิลด์อย่างละเอียด</p>
+                    </div>
+                </div>
+                <button onclick="closeQuestLog()" class="pixel-btn-action bg-red-500 text-white px-2 py-0.5 text-xs font-bold font-mono">X</button>
+            </div>
+            
+            <div class="space-y-4 text-sm" id="quest-log-content">
+                <!-- Content injected dynamically -->
+            </div>
+
+            <!-- PROOF RECORD WARNING INDICATOR -->
+            <div class="mt-4 p-2 bg-red-950/40 border border-red-900 rounded text-center text-[10px] text-red-400" data-i18n="integrity_warning">
+                ⚠️ [PROVEN INTEGRITY] ข้อมูลทั้งหมดในภาพนี้ถูกดักบันทึก Snapshot และบันทึกประวัติการตรวจสอบย้อนหลังลงคัมภีร์ระบบเรียบร้อยแล้ว
+            </div>
+        </div>
+    </div>
+
+    <!-- ALERTS/NOTIFICATIONS POPUP -->
+    <div id="system-alert-modal" class="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-slate-800 p-6 max-w-sm w-full border-4 border-black shadow-[4px_4px_0px_#000] text-center">
+            <div id="alert-icon" class="text-4xl mb-3">🚨</div>
+            <h3 id="alert-title" class="pixel-font text-xs text-yellow-400 mb-2" data-i18n="alert_guild_msg">ข้อความกิลด์</h3>
+            <p id="alert-message" class="text-slate-300 text-sm mb-6">คำเตือนจากยักษ์เฝ้าประตู</p>
+            <button onclick="closeAlertModal()" class="pixel-btn-action bg-amber-400 text-black px-6 py-2 text-xs font-bold pixel-font" data-i18n="alert_ok">
+                ตกลง (OK)
+            </button>
+        </div>
+    </div>
+
+    <!-- RETRO SOUND, FIREBASE INTEGRATION & DATABASE LOGIC -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, getDocs, doc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Whitelist อีเมลผู้ดูแลระบบสูงสุด และรหัสผ่านชั้นที่สองของแอดมินสถาบันไต้หวัน
+        const SUPER_ADMIN_EMAIL = "113121137@gms.tcu.edu.tw";
+        const SUPER_ADMIN_EMAIL2 = "113121140@gms.tcu.edu.tw";
+        const STEP_UP_CODE = "113121137";
+        const STEP_UP_CODE2 = "113121140";
+
+
+        // Firebase variables
+        let db = null;
+        let auth = null;
+        let isFirebaseActive = false;
+        const apiBaseUrl = API_CONFIG.apiBaseUrl;
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'pixel-loot';
+
+        async function apiFetchJson(path, options = {}) {
+            const url = `${apiBaseUrl}${path}`;
+            try {
+                const response = await fetch(url, {
+                    headers: { 'Content-Type': 'application/json' },
+                    ...options,
+                });
+                if (!response.ok) {
+                    const errText = await response.text();
+                    throw new Error(`${response.status} ${response.statusText}: ${errText}`);
+                }
+                return await response.json();
+            } catch (err) {
+                throw err;
+            }
+        }
+
+        // ------------------ Retro Synth Audio Engine ------------------
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        function playRetroSound(type) {
+            try {
+                if (audioCtx.state === 'suspended') {
+                    audioCtx.resume();
+                }
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                if (type === 'click') {
+                    osc.type = 'square';
+                    osc.frequency.setValueAtTime(380, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(100, audioCtx.currentTime + 0.1);
+                    gain.gain.setValueAtTime(0.06, audioCtx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.1);
+                } else if (type === 'gateopen') {
+                    osc.type = 'triangle';
+                    const notes = [220, 277, 329, 440, 554];
+                    notes.forEach((freq, idx) => {
+                        osc.frequency.setValueAtTime(freq, audioCtx.currentTime + (idx * 0.08));
+                    });
+                    gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + 0.5);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.5);
+                } else if (type === 'banish') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+                    osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.25);
+                    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.25);
+                } else if (type === 'coin') {
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(987.77, audioCtx.currentTime); 
+                    osc.frequency.setValueAtTime(1318.51, audioCtx.currentTime + 0.08); 
+                    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + 0.3);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.35);
+                } else if (type === 'fail') {
+                    osc.type = 'sawtooth';
+                    osc.frequency.setValueAtTime(130, audioCtx.currentTime);
+                    osc.frequency.setValueAtTime(90, audioCtx.currentTime + 0.2);
+                    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                    gain.gain.linearRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.25);
+                }
+            } catch (error) {
+                console.log("Audio contexts blocked or not supported on this device.");
+            }
+        }
+
+        // ------------------ PLAYERS DATABASE (MOCK + LIVE SYNC) ------------------
+        let players = [];
+
+        const mockDefaultPlayers = [
+            {
+                uid: "#0001",
+                name: "DragonSlayer99",
+                email: "slayer.dragon@dragonnest.com",
+                avatarSeed: "Dragon",
+                joinDate: "2026-02-14",
+                gold: 4200,
+                lvl: 8,
+                exp: 420,
+                provider: "google",
+                providerId: "g_99182312",
+                status: "Active",
+                depositHeld: 80,
+                bidsCount: 5,
+                winsCount: 2,
+                recentQuest: "ชนะประมูล 'หน้ากากหัวกะโหลกวิญญาณ' ในราคา 950 Gold"
+            },
+            {
+                uid: "#0002",
+                name: "NoobMaster77",
+                email: "noobmaster77@asgard.com",
+                avatarSeed: "Noob",
+                joinDate: "2026-03-01",
+                gold: 1500,
+                lvl: 3,
+                exp: 110,
+                provider: "facebook",
+                providerId: "fb_7736152",
+                status: "Active",
+                depositHeld: 200,
+                bidsCount: 4,
+                winsCount: 0,
+                recentQuest: "กำลังแข่งขันประมูลรายการ 'ไข่มังกรเพลิง'"
+            },
+            {
+                uid: "#0003",
+                name: "GoldDigger",
+                email: "g_digger@richminer.net",
+                avatarSeed: "Digger",
+                joinDate: "2026-03-20",
+                gold: 12800,
+                lvl: 12,
+                exp: 1560,
+                provider: "google",
+                providerId: "g_11094821",
+                status: "Active",
+                depositHeld: 0,
+                bidsCount: 3,
+                winsCount: 1,
+                recentQuest: "ซื้อขาดไอเทม 'ชุดคลุมเวทย์ดารา' ในราคา 890 Gold"
+            },
+            {
+                uid: "#0004",
+                name: "LootSpammer_Troll",
+                email: "troll_spammer@wildcave.com",
+                avatarSeed: "Troll",
+                joinDate: "2026-05-10",
+                gold: 0,
+                lvl: 1,
+                exp: 0,
+                provider: "local",
+                providerId: "local_94812",
+                status: "Banned",
+                depositHeld: 0,
+                bidsCount: 0,
+                winsCount: 0,
+                recentQuest: "เนรเทศออกจากกิลด์เนื่องจากประมูลเล่น ๆ แล้วชักดาบหนี"
+            }
+        ];
+
+        // Load Players from databases
+        async function loadPlayersData() {
+            let combinedPlayers = [...mockDefaultPlayers];
+
+            const localPlayers = JSON.parse(localStorage.getItem('pixel_loot_players') || '[]');
+            localPlayers.forEach(lp => {
+                const idx = combinedPlayers.findIndex(p => p.uid === lp.uid || p.email === lp.email);
+                if (idx > -1) {
+                    combinedPlayers[idx] = lp;
+                } else {
+                    combinedPlayers.push(lp);
+                }
+            });
+
+            try {
+                const apiPlayers = await apiFetchJson('/players');
+                apiPlayers.forEach(p => {
+                    const idx = combinedPlayers.findIndex(lp => lp.uid === p.uid || lp.email === p.email);
+                    const normalized = { ...p, password: p.passwordHash || p.password };
+                    if (idx > -1) {
+                        combinedPlayers[idx] = { ...combinedPlayers[idx], ...normalized };
+                    } else {
+                        combinedPlayers.push(normalized);
+                    }
+                });
+            } catch (err) {
+                console.warn('Backend players fetch failed in admin dashboard, falling back to local/mock data:', err);
+            }
+
+            if (isFirebaseActive && db) {
+                try {
+                    const querySnapshot = await getDocs(collection(db, 'artifacts', appId, 'public', 'data', 'players'));
+                    querySnapshot.forEach((docSnap) => {
+                        const fp = docSnap.data();
+                        const idx = combinedPlayers.findIndex(p => p.uid === fp.uid || p.email === fp.email);
+                        if (idx > -1) {
+                            combinedPlayers[idx] = fp;
+                        } else {
+                            combinedPlayers.push(fp);
+                        }
+                    });
+                } catch (err) {
+                    console.error("Error reading Firestore players database:", err);
+                }
+            }
+
+            players = combinedPlayers;
+            updateStatsOverview();
+            renderPlayers(players);
+        }
+
+        // Sync Player Changes on Database
+        async function syncPlayerChange(playerData) {
+            let localPlayers = JSON.parse(localStorage.getItem('pixel_loot_players') || '[]');
+            const idx = localPlayers.findIndex(p => p.uid === playerData.uid);
+            if (idx > -1) {
+                localPlayers[idx] = playerData;
+            } else {
+                localPlayers.push(playerData);
+            }
+            localStorage.setItem('pixel_loot_players', JSON.stringify(localPlayers));
+
+            try {
+                await apiFetchJson(`/players/${encodeURIComponent(playerData.uid)}`, {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        name: playerData.name,
+                        email: playerData.email,
+                        gold: playerData.gold,
+                        status: playerData.status,
+                        recentQuest: playerData.recentQuest,
+                        metadata: JSON.stringify({ avatarSeed: playerData.avatarSeed, provider: playerData.provider }),
+                    }),
+                });
+            } catch (err) {
+                console.warn('Backend player update failed, keeping local state only:', err);
+            }
+
+            if (isFirebaseActive && db) {
+                try {
+                    const playerDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'players', playerData.uid);
+                    await setDoc(playerDocRef, playerData);
+                    console.log("Player state update synced with Firestore successfully!");
+                } catch (err) {
+                    console.error("Failed to sync status change with cloud:", err);
+                }
+            }
+        }
+
+        // ------------------ Gate Verification ------------------
+        async function verifyAdminAccess() {
+            playRetroSound('click');
+            const emailInput = document.getElementById('auth-admin-email').value.trim();
+
+            if (emailInput === SUPER_ADMIN_EMAIL) {
+                try {
+                    if (typeof __firebase_config !== 'undefined' && __firebase_config) {
+                        const firebaseConfig = JSON.parse(__firebase_config);
+                        const app = initializeApp(firebaseConfig);
+                        auth = getAuth(app);
+                        db = getFirestore(app);
+
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                        isFirebaseActive = true;
+                        console.log("Firestore successfully connected on admin gate unlock!");
+                    }
+                } catch (e) {
+                    console.warn("Unable to establish remote Firebase database tunnel. Loading local sandbox databases:", e);
+                }
+
+                playRetroSound('gateopen');
+                document.getElementById('admin-auth-gate').classList.add('hidden');
+                document.getElementById('admin-main-dashboard').classList.remove('hidden');
+                document.getElementById('current-admin-email').innerText = SUPER_ADMIN_EMAIL;
+                document.getElementById('current-admin-name').innerText = "GUILD MASTER (ADMIN)";
+                
+                showToastTranslated("toast_gate_unlocked");
+                await loadPlayersData();
+            } else {
+                playRetroSound('fail');
+                showCustomAlertTranslated("alert_fail_access", "alert_fail_access_msg", "💀");
+            }
+        }
+
+        function lockDashboard() {
+            playRetroSound('click');
+            document.getElementById('admin-main-dashboard').classList.add('hidden');
+            document.getElementById('admin-auth-gate').classList.remove('hidden');
+            document.getElementById('auth-admin-email').value = '';
+            showToastTranslated("toast_gate_locked");
+        }
+
+        // ------------------ Player Database Rendering & Search ------------------
+        function renderPlayers(playersList) {
+            const container = document.getElementById('player-directory-container');
+            container.innerHTML = '';
+
+            if (playersList.length === 0) {
+                container.innerHTML = `
+                    <div class="col-span-1 md:col-span-2 text-center py-12 bg-slate-900 border-4 border-dashed border-slate-700">
+                        <span class="text-4xl block mb-2">📭</span>
+                        <p class="text-slate-400 font-mono text-sm" data-i18n="registry_empty">ไม่พบบันทึกรายชื่อผู้ผจญภัยในม้วนคัมภีร์ที่ค้นหา</p>
+                    </div>
+                `;
+                return;
+            }
+
+            playersList.forEach(player => {
+                const isBanned = player.status === "Banned";
+                const cardBorder = isBanned ? "border-red-600 bg-red-950/20" : "border-black bg-slate-900";
+                
+                // Fetch dynamic labels based on active language
+                const banBtnText = isBanned ? translationDict[currentLanguage]["btn_recruit"] : translationDict[currentLanguage]["btn_banish"];
+                const banBtnClass = isBanned ? "pixel-btn-action bg-emerald-600 hover:bg-emerald-700 text-white" : "pixel-btn-action bg-red-600 hover:bg-red-700 text-white";
+
+                container.innerHTML += `
+                    <div class="border-4 ${cardBorder} p-4 flex flex-col justify-between transition-all duration-300">
+                        <div class="flex gap-4">
+                            <div class="shrink-0 flex flex-col items-center">
+                                <img src="https://api.dicebear.com/7.x/pixel-art/svg?seed=${player.avatarSeed || player.name}" class="w-16 h-16 border-2 border-black bg-slate-950 rounded" alt="Avatar">
+                                <span class="bg-yellow-500 text-black font-bold px-1.5 py-0.5 text-[9px] rounded mt-2 border border-black font-mono">LVL ${player.lvl || 1}</span>
+                            </div>
+
+                            <div class="flex-grow space-y-1 overflow-hidden">
+                                <div class="flex items-center justify-between gap-2">
+                                    <h3 class="font-bold text-md text-white flex items-center gap-1.5 truncate">
+                                        ${player.name}
+                                        ${isBanned ? `<span class="text-[9px] px-1 bg-red-600 text-white rounded shrink-0">${translationDict[currentLanguage]["badge_banned"]}</span>` : ''}
+                                    </h3>
+                                    <span class="text-xs text-slate-500 font-mono shrink-0">${player.uid}</span>
+                                </div>
+                                <div class="text-xs text-slate-400 font-mono truncate">${player.email}</div>
+                                <div class="grid grid-cols-2 gap-2 pt-2">
+                                    <div class="text-xs bg-slate-950/60 p-1 border border-slate-800 rounded">
+                                        <span class="text-[9px] text-slate-500 block" data-i18n="label_gold">GOLD COINS:</span>
+                                        <b class="text-yellow-400 font-mono">💰 ${(player.gold || 0).toLocaleString()}</b>
+                                    </div>
+                                    <div class="text-xs bg-slate-950/60 p-1 border border-slate-800 rounded">
+                                        <span class="text-[9px] text-slate-500 block" data-i18n="label_deposit">ค้ำประกันประมูล:</span>
+                                        <b class="text-cyan-400 font-mono">💰 ${(player.depositHeld || 0).toLocaleString()}</b>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-3 gap-2 mt-4 border-t border-slate-800 pt-3">
+                            <button onclick="requestStepUp('${player.uid}')" class="pixel-btn-action bg-slate-800 hover:bg-slate-700 py-1 text-[10px] font-bold pixel-font text-cyan-300">
+                                📜 QUEST LOG
+                            </button>
+                            <button onclick="addBonusGold('${player.uid}')" class="pixel-btn-action bg-amber-500 hover:bg-amber-600 py-1 text-[10px] font-bold pixel-font text-black">
+                                🪙 REWARD
+                            </button>
+                            <button onclick="toggleBanStatus('${player.uid}')" class="${banBtnClass} py-1 text-[10px] font-bold pixel-font">
+                                ${banBtnText}
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        // Filter Players Search
+        function filterPlayers() {
+            const query = document.getElementById('player-search').value.toLowerCase();
+            const filtered = players.filter(p => 
+                p.name.toLowerCase().includes(query) || 
+                p.uid.toLowerCase().includes(query) ||
+                p.email.toLowerCase().includes(query)
+            );
+            renderPlayers(filtered);
+        }
+
+        // ------------------ Step-Up Security Authentication (สิทธิ์การตรวจสอบชั้นที่สอง) ------------------
+        let pendingTargetUid = null;
+
+        function requestStepUp(uid) {
+            playRetroSound('click');
+            pendingTargetUid = uid;
+            
+            // เปิดกล่องตรวจสอบรหัสความปลอดภัยขั้นที่สองก่อนดูข้อมูลผู้เล่น
+            document.getElementById('step-up-password').value = "";
+            document.getElementById('step-up-auth-modal').classList.remove('hidden');
+        }
+
+        function cancelStepUp() {
+            playRetroSound('click');
+            document.getElementById('step-up-auth-modal').classList.add('hidden');
+            pendingTargetUid = null;
+        }
+
+        async function submitStepUpAuth() {
+            const enteredCode = document.getElementById('step-up-password').value.trim();
+            if (enteredCode === STEP_UP_CODE) {
+                // ปลดล็อกชั้นที่สองสำเร็จ
+                playRetroSound('gateopen');
+                document.getElementById('step-up-auth-modal').classList.add('hidden');
+                
+                const targetPlayer = players.find(p => p.uid === pendingTargetUid);
+                if (targetPlayer) {
+                    await executeSecureQuestLog(targetPlayer);
+                }
+            } else {
+                playRetroSound('fail');
+                showCustomAlertTranslated("alert_stepup_fail_title", "alert_stepup_fail_msg", "🔒");
+            }
+        }
+
+        // ------------------ บันทึกและส่งประวัติ Snapshot & นกพิราบแจ้งเตือน (Transparency Active) ------------------
+        async function executeSecureQuestLog(playerData) {
+            // 1. นกพิราบส่งข้อความแจ้งเตือนความโปร่งใส (Privacy Warning) ไปยังประวัติและกระดานข้อความของเป้าหมาย
+            const alertMsg = translationDict[currentLanguage]["notification_audited"].replace("{time}", new Date().toLocaleTimeString());
+            
+            playerData.recentQuest = alertMsg;
+            await syncPlayerChange(playerData);
+            
+            // ส่งประวัติแจ้งเตือนไปยัง inbox แจ้งเตือนหลักเพื่อให้ผู้เล่นเปิดดูผ่านหน้า index.html
+            await notifyUserInGame(playerData.uid, alertMsg);
+
+            // 2. แสดงผลข้อมูลละเอียดบนหน้าบ้าน (Quest Log Modal)
+            viewQuestLog(playerData);
+
+            // 3. จำลองระบบบันทึกภาพถ่ายหลักฐาน (Admin Snapshot Proof System)
+            setTimeout(() => {
+                const toastMsg = translationDict[currentLanguage]["toast_snapshot_success"].replace("{name}", playerData.name);
+                showToast(toastMsg);
+                console.log(`[PROVE SYSTEM SHIELD] Snapshot captured securely for target user UID: ${playerData.uid}`);
+            }, 800);
+        }
+
+        // ------------------ Actions ------------------
+
+        // View Detailed Logs
+        function viewQuestLog(player) {
+            document.getElementById('quest-modal-title').innerText = `${translationDict[currentLanguage]["quest_log_header"]} : ${player.name}`;
+            document.getElementById('quest-modal-subtitle').innerText = `Player UID: ${player.uid} | Joined on ${player.joinDate}`;
+
+            const contentHTML = `
+                <div class="grid grid-cols-2 gap-3 mb-4">
+                    <div class="bg-slate-950 p-2.5 rounded border border-slate-800">
+                        <span class="text-xs text-slate-500 block">${translationDict[currentLanguage]["label_provider"]}</span>
+                        <span class="text-xs text-yellow-500 uppercase font-mono">${player.provider} (${player.providerId || 'N/A'})</span>
+                    </div>
+                    <div class="bg-slate-950 p-2.5 rounded border border-slate-800">
+                        <span class="text-xs text-slate-500 block">${translationDict[currentLanguage]["label_exp_collected"]}</span>
+                        <span class="text-xs text-emerald-400 font-mono">${player.exp || 0} / ${((player.lvl || 1) * 200)} EXP</span>
+                    </div>
+                </div>
+
+                <div class="space-y-2">
+                    <h4 class="font-bold text-xs text-amber-400 border-b border-slate-700 pb-1 uppercase">${translationDict[currentLanguage]["quest_log_section_metrics"]}</h4>
+                    <ul class="text-xs space-y-1 list-disc list-inside text-slate-300">
+                        <li>${translationDict[currentLanguage]["quest_log_bids"]}: <b class="text-white">${player.bidsCount || 0}</b></li>
+                        <li>${translationDict[currentLanguage]["quest_log_wins"]}: <b class="text-emerald-400">${player.winsCount || 0}</b></li>
+                        <li>${translationDict[currentLanguage]["quest_log_status"]}: <b class="${player.status === 'Active' ? 'text-green-400' : 'text-red-500'} font-bold">${player.status}</b></li>
+                    </ul>
+                </div>
+
+                <div class="space-y-2 pt-2">
+                    <h4 class="font-bold text-xs text-cyan-400 border-b border-slate-700 pb-1 uppercase">${translationDict[currentLanguage]["quest_log_section_activity"]}</h4>
+                    <p class="text-xs bg-slate-950 p-3 border border-slate-800 rounded text-slate-300 italic">
+                        "${player.recentQuest || 'ยังไม่มีบันทึกภารกิจ'}"
+                    </p>
+                </div>
+            `;
+
+            document.getElementById('quest-log-content').innerHTML = contentHTML;
+            document.getElementById('quest-log-modal').classList.remove('hidden');
+        }
+
+        function closeQuestLog() {
+            playRetroSound('click');
+            document.getElementById('quest-log-modal').classList.add('hidden');
+        }
+
+        // Ban and unban user
+        async function toggleBanStatus(uid) {
+            const player = players.find(p => p.uid === uid);
+            if (!player) return;
+
+            playRetroSound('banish');
+            if (player.status === "Active") {
+                player.status = "Banned";
+                player.recentQuest = "โดนแบนโดย Guild Master";
+                
+                const toastMsg = translationDict[currentLanguage]["toast_banish_active"].replace("{name}", player.name);
+                showToast(toastMsg);
+                await notifyUserInGame(player.uid, "🚨 บัญชีของคุณถูกแบนจากกิลด์เนื่องจากการฝ่าฝืนกฎการประมูลสินค้า");
+            } else {
+                player.status = "Active";
+                player.recentQuest = "ได้รับการปลดแบน คืนสิทธิ์เข้าร่วมกิลด์";
+                
+                const toastMsg = translationDict[currentLanguage]["toast_banish_recruit"].replace("{name}", player.name);
+                showToast(toastMsg);
+                await notifyUserInGame(player.uid, "🛡️ บัญชีของคุณได้รับการปลดแบนแล้ว ยินดีต้อนรับกลับเข้าสู่ระบบการค้า!");
+            }
+
+            // Sync with local memory & firestoreคลาวด์
+            await syncPlayerChange(player);
+            updateStatsOverview();
+            renderPlayers(players);
+        }
+
+        // Dispense bonus Gold for players
+        async function addBonusGold(uid) {
+            const player = players.find(p => p.uid === uid);
+            if (!player) return;
+
+            playRetroSound('coin');
+            player.gold = (player.gold || 0) + 1000;
+            player.recentQuest = "ได้รับทองโบนัสทดสอบ 1,000 Gold จาก Guild Master";
+            
+            const toastMsg = translationDict[currentLanguage]["toast_reward_gold"].replace("{name}", player.name);
+            showToast(toastMsg);
+            await notifyUserInGame(player.uid, "💰 คุณได้รับโบนัสสนับสนุน 1,000 GOLD ส่งตรงจากท่านผู้ดูแลระบบ!");
+
+            // Sync status changes
+            await syncPlayerChange(player);
+            updateStatsOverview();
+            renderPlayers(players);
+        }
+
+        // Update Stat indicators
+        function updateStatsOverview() {
+            const totalPlayers = players.length;
+            const totalGold = players.reduce((acc, curr) => acc + (curr.gold || 0), 0);
+            const bannedCount = players.filter(p => p.status === 'Banned').length;
+            const totalBids = players.reduce((acc, curr) => acc + (curr.bidsCount || 0), 0);
+
+            document.getElementById('stat-total-players').innerText = totalPlayers;
+            document.getElementById('stat-total-gold').innerText = totalGold.toLocaleString();
+            document.getElementById('stat-banned-count').innerText = bannedCount;
+            document.getElementById('stat-total-bids').innerText = totalBids;
+        }
+
+        // Send notifications directly to player account matching index.html structure
+        async function notifyUserInGame(uid, message) {
+            try {
+                const key = `player_notifications_${uid}`;
+                const existing = JSON.parse(localStorage.getItem(key) || '[]');
+                const note = { message, timestamp: new Date().toISOString(), read: false };
+                existing.push(note);
+                localStorage.setItem(key, JSON.stringify(existing));
+
+                try {
+                    await apiFetchJson('/notifications', {
+                        method: 'POST',
+                        body: JSON.stringify({ uid, message }),
+                    });
+                } catch (err) {
+                    console.warn('Backend notification save failed, storing locally only:', err);
+                }
+
+                if (isFirebaseActive && db) {
+                    try {
+                        const noteDocRef = doc(db, 'artifacts', appId, 'public', 'data', 'notifications', `${uid}_${Date.now()}`);
+                        await setDoc(noteDocRef, { uid, ...note });
+                    } catch (err) {
+                        console.error('Failed to sync notification to Firestore', err);
+                    }
+                }
+            } catch (err) {
+                console.error('Failed to store user notification', err);
+            }
+        }
+
+        // Toast Notifications
+        function showToast(text) {
+            const container = document.createElement('div');
+            container.className = "fixed bottom-4 right-4 bg-slate-900 border-2 border-black p-3 rounded pixel-border-sm text-xs font-bold text-yellow-300 max-w-xs transition-opacity duration-300 z-50 flex items-center gap-2";
+            container.innerHTML = `<span>🔮</span> <span>${text}</span>`;
+            
+            document.body.appendChild(container);
+            
+            setTimeout(() => {
+                container.classList.add('opacity-0');
+                setTimeout(() => container.remove(), 300);
+            }, 3000);
+        }
+
+        function showToastTranslated(key) {
+            const text = translationDict[currentLanguage][key];
+            showToast(text);
+        }
+
+        // Custom Modal
+        function showCustomAlert(title, msg, icon = "🔔") {
+            document.getElementById('alert-title').innerText = title;
+            document.getElementById('alert-message').innerText = msg;
+            document.getElementById('alert-icon').innerText = icon;
+            document.getElementById('system-alert-modal').classList.remove('hidden');
+        }
+
+        function showCustomAlertTranslated(titleKey, msgKey, icon = "🔔") {
+            const title = translationDict[currentLanguage][titleKey];
+            const message = translationDict[currentLanguage][msgKey];
+            showCustomAlert(title, message, icon);
+        }
+
+        function closeAlertModal() {
+            playRetroSound('click');
+            document.getElementById('system-alert-modal').classList.add('hidden');
+        }
+
+        // ------------------ Multi-Language / Localization System (i18n) ------------------
+        const translationDict = {
+            th: {
+                gatekeeper_title: "แผงประตูเฝ้ายามกิลด์",
+                gatekeeper_subtitle: "กรุณากรอกกุญแจวิเศษ (อีเมลแอดมิน) เพื่อเข้าถึงคลังข้อมูลกิลด์",
+                label_admin_email: "ที่อยู่อีเมลแอดมินลับ",
+                btn_unlock: "🛡️ ไขประตูปราสาทหลังบ้าน",
+                whitelist_active: "🔒 เปิดการทำงานระบบยืนยันตัวตนระดับสูงของสถาบัน",
+                dashboard_title: "ห้องสมุดสมาชิกกิลด์",
+                dashboard_subtitle: "ระบบจัดการทะเบียนผู้เล่นระดับเจ้ากิลด์ (Admin Panel)",
+                role_guild_master: "หัวหน้ากิลด์ (แอดมิน)",
+                btn_lock: "ล็อกระบบ",
+                pipeline_indicator: "สายข้อมูลสีแดงและเกราะการตรวจสอบ: ออนไลน์",
+                pipeline_action: "สมัครสมาชิก/สร้าง NEW HERO",
+                pipeline_realtime: "ส่งข้อมูลเรียลไทม์",
+                pipeline_status: "ซิงก์, แฮช, และดักความปลอดภัยสองชั้นแล้ว",
+                stat_total_players: "สมาชิกทั้งหมด",
+                stat_total_gold: "ทองรวมในระบบ",
+                stat_banned_count: "แบนถาวร",
+                stat_total_bids: "ยอดประมูลสะสม",
+                search_placeholder: "🔍 ค้นหาด้วยชื่อผู้เล่น หรือ UID...",
+                banish_note: "* คลิก BANISH เพื่อระงับสิทธิ์ในการเข้าร่วมประมูลสินค้า",
+                registry_empty: "ไม่พบบันทึกรายชื่อผู้ผจญภัยในม้วนคัมภีร์ที่ค้นหา",
+                stepup_title: "กรุณายืนยันตัวตนชั้นที่สอง",
+                stepup_subtitle: "กรุณาระบุรหัสผ่านลับขั้นที่สอง (113121137) เพื่อปลดล็อกคลังข้อมูลเชิงลึกของผู้เล่น พร้อมส่งนกพิราบแจ้งเตือนและบันทึกประวัติ",
+                stepup_placeholder: "ระบุรหัสความปลอดภัยขั้นที่สอง",
+                btn_unlock_stepup: "ปลดล็อกความปลอดภัย",
+                btn_cancel: "ยกเลิก",
+                quest_log_header: "ประวัติการเดินทางของตัวละคร",
+                quest_log_sub: "ข้อมูลการสำรวจกิลด์อย่างละเอียด",
+                integrity_warning: "⚠️ [ความสมบูรณ์แบบที่พิสูจน์แล้ว] ข้อมูลทั้งหมดในภาพนี้ถูกดักบันทึก Snapshot และบันทึกประวัติการตรวจสอบย้อนหลังลงคัมภีร์ระบบเรียบร้อยแล้ว",
+                alert_guild_msg: "ข้อความสมาคมกิลด์",
+                alert_ok: "ตกลง (OK)",
+                badge_banned: "โดนแบน",
+                label_gold: "เหรียญทอง:",
+                label_deposit: "ค้ำประกันประมูล:",
+                btn_recruit: "⚔️ ว่าจ้างคืนสิทธิ์",
+                btn_banish: "💀 เนรเทศแบน",
+                label_provider: "สิทธิ์ช่องทางล็อกอิน:",
+                label_exp_collected: "สะสมค่าประสบการณ์ (EXP):",
+                quest_log_section_metrics: "สถิติลานประมูล (Auction Metrics)",
+                quest_log_bids: "จํานวนการกดสู้ราคาประมูลทั้งหมด",
+                quest_log_wins: "ประมูลชนะได้รับของสำเร็จ",
+                quest_log_status: "สถานะกิลด์ปัจจุบัน",
+                quest_log_section_activity: "ความเคลื่อนไหวล่าสุด (Recent Quest Activity)",
+                alert_fail_access: "👹 เลเวลสิทธิ์ไม่เพียงพอ!",
+                alert_fail_access_msg: "เจ้าก้าวผ่านห้องเก็บความลับกิลด์นี้ไม่ได้! ข้อมูลสมาชิกจะปลอดภัยภายใต้คำสั่ง Hardcoded Admin Whitelist!",
+                alert_stepup_fail_title: "👹 รหัสปลดล็อกผิดพลาด!",
+                alert_stepup_fail_msg: "รหัสผ่านขั้นที่สองไม่ถูกต้อง! ระบบจะไม่ยินยอมให้เรียกดูคลังข้อมูลเชิงลึกได้เด็ดขาด",
+                toast_gate_unlocked: "🧙‍♂️ ประตูหลังปราสาทเปิดออกแล้ว! ดึงสลักเชื่อมคัมภีร์เรียบร้อย",
+                toast_gate_locked: "🔒 ปิดประตูลงสลักห้องสมุดเรียบร้อย",
+                toast_snapshot_success: "📸 [Snapshot] บันทึกหลักฐานหน้าจอประวัติของ {name} สำเร็จ!",
+                toast_banish_active: "💀 สั่งเนรเทศ (BANISH) ผู้เล่น {name} เรียบร้อย!",
+                toast_banish_recruit: "🛡️ ปลดแบนและจ้างผู้เล่น {name} กลับมาร่วมกิลด์แล้ว!",
+                toast_reward_gold: "💰 แจกทองโบนัส +1,000 GOLD ให้ผู้เล่น {name} สำเร็จ!",
+                notification_audited: "[ความโปร่งใส] เมื่อเวลา {time} เจ้าหน้าที่กิลด์ระดับสูงได้เข้าตรวจสอบข้อมูลประวัติกิลด์และบัญชีของคุณเพื่อความปลอดภัยสูงสุด"
+            },
+            en: {
+                gatekeeper_title: "GUILD GATEKEEPER",
+                gatekeeper_subtitle: "Please enter the magic key (Admin Email) to access the guild archives.",
+                label_admin_email: "ADMIN SECRET EMAIL",
+                btn_unlock: "🛡️ UNLOCK GUILD GATE",
+                whitelist_active: "🔒 HARDCODED ADMIN WHITELIST ACTIVE",
+                dashboard_title: "GUILD USER LIBRARY",
+                dashboard_subtitle: "Guild Player Registry Management System (Admin Panel)",
+                role_guild_master: "Guild Master",
+                btn_lock: "LOCK SYSTEM",
+                pipeline_indicator: "DATA PIPELINE & AUDIT SHIELD: ONLINE",
+                pipeline_action: "Registration/Create NEW HERO",
+                pipeline_realtime: "Real-time Sync Active",
+                pipeline_status: "Synced, Hashed, and Double-Key Guarded",
+                stat_total_players: "Total Players",
+                stat_total_gold: "Total Gold in Guild",
+                stat_banned_count: "Banish Count",
+                stat_total_bids: "Total Accumulated Bids",
+                search_placeholder: "🔍 Search by Knight Name or UID...",
+                banish_note: "* Click BANISH to restrict player's bidding authority",
+                registry_empty: "No record of adventurers found in searched scrolls.",
+                stepup_title: "PROVE ADMIN AUTHORITY",
+                stepup_subtitle: "Please enter secret step-up password (113121137) to unlock detailed adventurer logs. This triggers snapshot and transparency alert.",
+                stepup_placeholder: "Enter Second Security Proof Key",
+                btn_unlock_stepup: "UNLOCK SECURITY",
+                btn_cancel: "CANCEL",
+                quest_log_header: "CHARACTER QUEST LOG",
+                quest_log_sub: "Detailed guild adventure analysis",
+                integrity_warning: "⚠️ [PROVEN INTEGRITY] All data within this log has been recorded and snapshotted with automatic traceability.",
+                alert_guild_msg: "Guild Message",
+                alert_ok: "OK",
+                badge_banned: "BANNED",
+                label_gold: "GOLD COINS:",
+                label_deposit: "AUCTION DEPOSIT:",
+                btn_recruit: "⚔️ RECRUIT HERO",
+                btn_banish: "💀 BANISH HERO",
+                label_provider: "OAUTH ACCESS ID:",
+                label_exp_collected: "ACCUMULATED EXP LEVEL:",
+                quest_log_section_metrics: "Auction metrics",
+                quest_log_bids: "Total times bidding against opponents",
+                quest_log_wins: "Successfully won legendary treasures",
+                quest_log_status: "Current Guild Status",
+                quest_log_section_activity: "Recent Quest Activity",
+                alert_fail_access: "👹 Insufficient Privilege level!",
+                alert_fail_access_msg: "You cannot pass this guild barrier! Sentry protocol is safe under secure Hardcoded Admin Whitelist!",
+                alert_stepup_fail_title: "👹 Step-Up Verification Failed!",
+                alert_stepup_fail_msg: "Incorrect security code! Access to player data database has been strictly denied.",
+                toast_gate_unlocked: "🧙‍♂️ Castle gate unlocked! Linked to Firestore registries.",
+                toast_gate_locked: "🔒 Guild library closed and sealed safely.",
+                toast_snapshot_success: "📸 [Snapshot] Captured security screenshot of {name}'s quest logs!",
+                toast_banish_active: "💀 Banished adventurer {name} from the guild!",
+                toast_banish_recruit: "🛡️ Pardon accepted, {name} has returned to the directory!",
+                toast_reward_gold: "💰 Sent +1,000 GOLD stimulus reward to player {name}!",
+                notification_audited: "[Transparency] At {time}, a high-ranking Guild Master accessed and reviewed your quest logs for safety."
+            },
+            tw: {
+                gatekeeper_title: "公會守門大將",
+                gatekeeper_subtitle: "請輸入公會魔法密鑰 (管理員信箱) 以開啟管理之門。",
+                label_admin_email: "管理員機密信箱",
+                btn_unlock: "🛡️ 開啟公會後門",
+                whitelist_active: "🔒 硬編碼管理員白名單系統運行中",
+                dashboard_title: "冒險者圖書館",
+                dashboard_subtitle: "公會會長管理大廳 (後台系統)",
+                role_guild_master: "公會會長 (管理員)",
+                btn_lock: "關閉後台",
+                pipeline_indicator: "數據通道及安全審查盾：已啟用",
+                pipeline_action: "註冊 / 創建新英雄",
+                pipeline_realtime: "即時數據同步中",
+                pipeline_status: "數據已儲存、加密，且通過雙重金鑰防護",
+                stat_total_players: "冒險者總數",
+                stat_total_gold: "公會現存黃金總計",
+                stat_banned_count: "已驅逐人數",
+                stat_total_bids: "總計競標次數",
+                search_placeholder: "🔍 輸入騎士名稱或 UID 搜尋...",
+                banish_note: "* 點擊 BANISH 驅逐冒險者以限制其出價競標之權利",
+                registry_empty: "在搜尋的卷軸中查無此冒險者紀錄。",
+                stepup_title: "二次身分特權認證",
+                stepup_subtitle: "請輸入二次認證密碼 (113121137) 以解鎖冒險者詳細數據。此操作將觸發快照與隱私警告通知。",
+                stepup_placeholder: "輸入二次安全特權密碼",
+                btn_unlock_stepup: "解鎖安全限制",
+                btn_cancel: "取消操作",
+                quest_log_header: "角色冒險日誌",
+                quest_log_sub: "公會冒險履歷明細分析",
+                integrity_warning: "⚠️ [誠信審核] 此頁面顯示的所有個人數據已被即時快照紀錄備份至公會防護日誌中。",
+                alert_guild_msg: "公會重要警示",
+                alert_ok: "確認",
+                badge_banned: "已驅逐",
+                label_gold: "冒險黃金:",
+                label_deposit: "競標保證金:",
+                btn_recruit: "⚔️ 招募歸隊",
+                btn_banish: "💀 驅逐封鎖",
+                label_provider: "第三方連結類型:",
+                label_exp_collected: "冒險者累積經驗值 (EXP):",
+                quest_log_section_metrics: "競標拍賣分析數據",
+                quest_log_bids: "總計與對手互相出價次數",
+                quest_log_wins: "成功奪標並獲得傳奇商品次數",
+                quest_log_status: "當前公會信用狀態",
+                quest_log_section_activity: "最新發布之任務紀錄",
+                alert_fail_access: "👹 身分特權等級不足！",
+                alert_fail_access_msg: "您無法越過此防護牆！此保險箱正受到最高硬編碼白名單規章的安全保護！",
+                alert_stepup_fail_title: "👹 二次特權認證失敗！",
+                alert_stepup_fail_msg: "二次特權認證密碼錯誤！系統拒絕您存取此冒險者的個人數據庫。",
+                toast_gate_unlocked: "🧙‍♂️ 圖書館後門已開啟！已同步安全連接至 Firestore。",
+                toast_gate_locked: "🔒 後門控制台已關閉並成功封印。",
+                toast_snapshot_success: "📸 [快照] 已成功為冒險者 {name} 的履歷進行安全快照備份！",
+                toast_banish_active: "💀 已成功將冒險者 {name} 驅逐出境！",
+                toast_banish_recruit: "🛡️ 已寬恕冒險者 {name}，並允許其回歸公會名冊！",
+                toast_reward_gold: "💰 已成功為 {name} เสริมทองคำ +1,000 GOLD!",
+                notification_audited: "[隱私透明度] 於 {time}，公會會長通過二次權限驗證，存取並調閱了您的冒險者歷史紀錄。"
+            }
+        };
+
+        let currentLanguage = 'tw';
+
+        function normalizeLanguage(langCode) {
+            return langCode === 'cn' ? 'tw' : langCode;
+        }
+
+        function changeLanguage(langCode) {
+            playRetroSound('click');
+            langCode = normalizeLanguage(langCode);
+            currentLanguage = langCode;
+            localStorage.setItem('current_lang', langCode);
+            updateUIStrings();
+            
+            // Re-render players grid using the newly selected language translations
+            renderPlayers(players);
+        }
+
+        function updateUIStrings() {
+            // Update Lang Switcher Header text
+            const activeBtn = document.getElementById('lang-active-btn');
+            if (currentLanguage === 'th') {
+                activeBtn.innerHTML = `<span>🇹🇭</span> <span class="pixel-font text-[9px]">TH</span> <span class="text-[9px]">▼</span>`;
+            } else if (currentLanguage === 'en') {
+                activeBtn.innerHTML = `<span>🇬🇧</span> <span class="pixel-font text-[9px]">EN</span> <span class="text-[9px]">▼</span>`;
+            } else if (currentLanguage === 'tw') {
+                activeBtn.innerHTML = `<span>🇹🇼</span> <span class="pixel-font text-[9px]">ZH</span> <span class="text-[9px]">▼</span>`;
+            }
+
+            // Update all element strings with data-i18n attribute
+            document.querySelectorAll('[data-i18n]').forEach(el => {
+                const key = el.getAttribute('data-i18n');
+                if (translationDict[currentLanguage] && translationDict[currentLanguage][key]) {
+                    el.innerText = translationDict[currentLanguage][key];
+                }
+            });
+
+            // Update placeholders
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(el => {
+                const key = el.getAttribute('data-i18n-placeholder');
+                if (translationDict[currentLanguage] && translationDict[currentLanguage][key]) {
+                    el.placeholder = translationDict[currentLanguage][key];
+                }
+            });
+        }
+
+        // Initialize i18n
+        function initLanguage() {
+            const savedLang = normalizeLanguage(localStorage.getItem('current_lang'));
+            if (savedLang && translationDict[savedLang]) {
+                currentLanguage = savedLang;
+            } else {
+                currentLanguage = 'tw'; // Default language fallback
+            }
+            updateUIStrings();
+        }
+
+        // Run setup on initialization
+        window.addEventListener('DOMContentLoaded', () => {
+            initLanguage();
+        });
+
+        // Expose functions globally for HTML click triggers within Module scope
+        window.verifyAdminAccess = verifyAdminAccess;
+        window.lockDashboard = lockDashboard;
+        window.filterPlayers = filterPlayers;
+        window.requestStepUp = requestStepUp;
+        window.submitStepUpAuth = submitStepUpAuth;
+        window.cancelStepUp = cancelStepUp;
+        window.closeQuestLog = closeQuestLog;
+        window.toggleBanStatus = toggleBanStatus;
+        window.addBonusGold = addBonusGold;
+        window.closeAlertModal = closeAlertModal;
+        window.changeLanguage = changeLanguage;
+
+    </script>
+</body>
+</html>

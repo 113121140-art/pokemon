@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="tw">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Loot - Town Square & Auctions (Secure & Transparent)</title>
+
+    <script>
+        window.PIXEL_LOOT_API_BASE_URL = 'https://pixel-loot-backend-production.up.railway.app';
+    </script>
+    
+    <script src="config.js"></script> 
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        /* 復古遊戲像素風格 */
+        body {
+            font-family: 'Sarabun', sans-serif;
+            background-color: #121824;
+            color: #e2e8f0;
+        }
+        
+        .pixel-font {
+            font-family: 'Press Start 2P', cursive;
+        }
+
+        /* 8-bit 邊框與陰影 */
+        .pixel-border {
+            border: 4px solid #000;
+            box-shadow: 4px 4px 0px #000;
+        }
+        
+        .pixel-border-sm {
+            border: 2px solid #000;
+            box-shadow: 2px 2px 0px #000;
+        }
+
+        .pixel-btn {
+            border: 4px solid #000;
+            box-shadow: 4px 4px 0px #000;
+            transition: all 0.1s ease;
+            position: relative;
+        }
+
+        .pixel-btn:active {
+            transform: translate(2px, 2px);
+            box-shadow: 2px 2px 0px #000;
+        }
+
+        .pixel-btn-red { background-color: #f87171; color: black; }
+        .pixel-btn-red:hover { background-color: #ef4444; }
+        
+        .pixel-btn-green { background-color: #10b981; color: white; }
+        .pixel-btn-green:hover { background-color: #059669; }
+
+        .pixel-btn-yellow { background-color: #f59e0b; color: black; }
+        .pixel-btn-yellow:hover { background-color: #d97706; }
+
+        .pixel-btn-purple { background-color: #8b5cf6; color: white; }
+        .pixel-btn-purple:hover { background-color: #7c3aed; }
+
+        .pixel-btn-blue { background-color: #3b82f6; color: white; }
+        .pixel-btn-blue:hover { background-color: #2563eb; }
+
+        /* HP 條動畫 */
+        .hp-bar-fill {
+            transition: width 0.5s linear;
+        }
+
+        /* 復古自訂滾動條 */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border: 2px solid #0d1117;
+        }
+
+        /* 自訂像素網格背景 */
+        .pixel-grid {
+            background-size: 20px 20px;
+            background-image: linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px);
+        }
+    </style>
+</head>
+<script>
+        // 1. 從 API_CONFIG 獲取正確的 API Base URL (優先使用 config.js 產生的設定)
+        const BASE_URL = (typeof API_CONFIG !== 'undefined') ? API_CONFIG.apiBaseUrl : window.PIXEL_LOOT_API_BASE_URL;
+
+        // 2. 分頁切換邏輯 (Tab Switching)
+        function changeTab(tabId) {
+            // 隱藏所有分頁內容
+            document.querySelectorAll('.tab-content').forEach(section => {
+                section.classList.add('hidden');
+            });
+            
+            // 移除所有標籤按鈕的選中樣式（變回灰色），並恢復預設樣式
+            const tabButtons = ['town', 'auctions', 'my-quests', 'guild-merchant', 'profile'];
+            tabButtons.forEach(id => {
+                const btn = document.getElementById(`tab-${id}`);
+                if (btn) {
+                    btn.className = "pixel-btn bg-slate-700 text-slate-300 px-4 py-2 text-sm pixel-font";
+                }
+            });
+
+            // 顯示當前點擊的分頁
+            const activeSection = document.getElementById(`sect-${tabId}`);
+            if (activeSection) {
+                activeSection.classList.remove('hidden');
+            }
+
+            // 高亮當前點擊的按鈕 (例如 town 就變成綠色)
+            const activeBtn = document.getElementById(`tab-${tabId}`);
+            if (activeBtn) {
+                if (tabId === 'town') activeBtn.className = "pixel-btn pixel-btn-green px-4 py-2 text-sm pixel-font";
+                else if (tabId === 'auctions') activeBtn.className = "pixel-btn pixel-btn-purple px-4 py-2 text-sm pixel-font";
+                else activeBtn.className = "pixel-btn pixel-btn-yellow px-4 py-2 text-sm pixel-font";
+            }
+
+            // 當切換到對應分頁時，自動向後端拉取最新資料
+            if (tabId === 'town') {
+                fetchShopItems();
+            }
+        }
+
+        // 3. 非同步獲取市集商品並動態渲染 (Fetch & Render Shop Items)
+        async function fetchShopItems() {
+            const container = document.getElementById('shop-items-container');
+            if (!container) return;
+
+            // 顯示載入中的骨架屏或文字
+            container.innerHTML = `<p class="text-slate-400 col-span-3 text-center py-12 pixel-font text-xs animate-pulse">📡 LOADING LOOT FROM GUILD VAULT...</p>`;
+
+            try {
+                // 串接 MySQL 後端的 /shop_items 路由
+                const response = await fetch(`${BASE_URL}/shop_items`);
+                if (!response.ok) throw new Error('無法從公會獲取商品庫存');
+                
+                const items = await response.json();
+                container.innerHTML = ''; // 清空載入文字
+
+                if (items.length === 0) {
+                    container.innerHTML = `<p class="text-slate-500 col-span-3 text-center py-12" data-i18n="no_items">市集目前空空如也，等待冒險者上架物品...</p>`;
+                    return;
+                }
+
+                // 迴圈渲染每一個從資料庫拿到的商品
+                items.forEach(item => {
+                    // 檢查庫存狀態
+                    const isOutOfStock = item.stock <= 0;
+                    const btnClass = isOutOfStock ? 'pixel-btn-red cursor-not-allowed opacity-50' : 'pixel-btn-yellow';
+                    const btnText = isOutOfStock ? 'SOLD OUT' : `BUY FOR ${item.price} 💰`;
+
+                    const itemCard = `
+                        <div class="bg-slate-900 p-4 pixel-border flex flex-col justify-between group hover:border-yellow-400 transition-colors">
+                            <div>
+                                <div class="h-40 bg-slate-950 border-2 border-slate-800 mb-3 flex items-center justify-center text-4xl relative overflow-hidden">
+                                    \${item.image_url ? `<img src="\${item.image_url}" class="w-full h-full object-cover select-none image-rendering-pixelated">` : '📦'}
+                                    <span class="absolute top-2 right-2 bg-slate-900/80 px-2 py-0.5 border border-slate-700 rounded text-[10px] text-slate-400 font-mono">
+                                        QTY: \${item.stock}
+                                    </span>
+                                </div>
+                                
+                                <h3 class="pixel-font text-xs text-white group-hover:text-yellow-400 transition-colors">\${item.name}</h3>
+                                <p class="text-xs text-slate-400 mt-2 leading-relaxed min-h-[36px] line-clamp-2">\${item.description || '這個神祕物品背後沒有留下任何傳說。'}</p>
+                            </div>
+
+                            <div class="mt-4 pt-3 border-t border-slate-800">
+                                <div class="flex justify-between items-center mb-3 text-[11px] text-slate-500">
+                                    <span>賣家: <b class="text-slate-400">\${item.seller_name || '系統公會'}</b></span>
+                                    <span class="text-emerald-400">● 良好</span>
+                                </div>
+                                <button \${isOutOfStock ? 'disabled' : ''} 
+                                        onclick="buyItemDirectly(\${item.id}, \${item.price})" 
+                                        class="w-full pixel-btn \${btnClass} py-2 text-xs font-bold uppercase tracking-wider">
+                                    \${btnText}
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                    container.insertAdjacentHTML('beforeend', itemCard);
+                });
+
+            } catch (error) {
+                console.error('Fetch error:', error);
+                container.innerHTML = `
+                    <div class="col-span-3 text-center py-12 border-2 border-red-500 bg-red-950/20 rounded">
+                        <p class="text-red-400 pixel-font text-xs">❌ 傳送陣發生錯誤 (FAILED TO CONNECT TO GUILD)</p>
+                        <p class="text-xs text-slate-500 mt-1">請確認你的後端伺服器已正常開啟並允許 CORS 跨域請求。</p>
+                    </div>
+                `;
+            }
+        }
+
+        // 4. 點擊購買邏輯
+        function buyItemDirectly(itemId, price) {
+            alert(`正在為你發起代管交易！\n商品編號: \${itemId}\n扣除金額: \${price} GOLD\n後續將透過 Escrow 機制保護你的金流。`);
+        }
+
+        // 5. 補上畫面中缺少的其他按鈕互動功能，防止 Console 報錯
+        function toggleCart() {
+            alert("🎒 背包（購物車）功能正在籌備中！");
+        }
+
+        function openInbox() {
+            alert("📬 收件夾目前沒有新的羊皮紙信件。");
+        }
+
+        // 頁面加載完成後自動初始化
+        window.addEventListener('DOMContentLoaded', () => {
+            fetchShopItems();
+        });
+    </script>
+<body class="min-h-screen pb-12 pixel-grid">
+
+    <div class="fixed top-4 right-4 z-50 flex items-center gap-2">
+        <button id="inbox-btn" class="pixel-btn pixel-btn-blue px-2 py-1 text-xs flex items-center gap-2" title="Inbox" onclick="openInbox()">
+            <span id="inbox-count" class="bg-red-500 text-white px-1 rounded text-[11px]">0</span>
+            <span>📬</span>
+        </button>
+
+        <div class="relative">
+            <button id="idx-lang-btn" class="pixel-btn pixel-btn-yellow px-3 py-1 text-xs flex items-center gap-2">
+                <span id="idx-lang-flag">🇹🇼</span> <span id="idx-lang-code" class="pixel-font text-[9px]">ZH</span> <span class="text-[9px]">▼</span>
+            </button>
+            <div id="idx-lang-dropdown" class="hidden absolute right-0 mt-2 bg-slate-900 border-4 border-black shadow-[4px_4px_0px_#000] w-40">
+                <button data-lang="th" class="w-full text-left px-3 py-2 hover:bg-slate-800">🇹🇭 TH - ไทย</button>
+                <button data-lang="en" class="w-full text-left px-3 py-2 hover:bg-slate-800">🇬🇧 EN - English</button>
+                <button data-lang="tw" class="w-full text-left px-3 py-2 hover:bg-slate-800">🇹🇼 ZH - 繁體中文</button>
+            </div>
+        </div>
+    </div>
+
+    <header class="bg-slate-900 border-b-4 border-black p-4 sticky top-0 z-50">
+        <div class="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            
+            <div class="flex items-center gap-3 cursor-pointer select-none" onclick="changeTab('town')">
+                <span class="text-3xl">🪙</span>
+                <div>
+                    <h1 class="pixel-font text-yellow-400 text-lg md:text-xl tracking-wider" data-i18n="site_title">PIXEL LOOT</h1>
+                    <p class="text-xs text-slate-400 font-semibold uppercase" data-i18n="site_subtitle">Town Square & Legendary Auctions</p>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-4 bg-slate-800 p-2.5 rounded pixel-border-sm w-full md:w-auto justify-between md:justify-end">
+                <div class="flex items-center gap-2 border-r border-slate-700 pr-3 cursor-pointer" onclick="changeTab('profile')">
+                    <div id="player-avatar-mini" class="w-8 h-8 rounded bg-slate-950 border border-yellow-500 overflow-hidden flex items-center justify-center text-lg">
+                        🧑‍🚀
+                    </div>
+                    <div class="text-left">
+                        <div id="player-name-mini" class="text-xs font-bold text-white max-w-[100px] truncate">นักผจญภัยมือใหม่</div>
+                        <div class="text-[9px] text-slate-400 uppercase" data-i18n="view_status">View Status</div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2 bg-slate-900 px-2 py-1 border border-black rounded text-xs">
+                    <span class="text-slate-400" data-i18n="bank_label">🏦 BANK:</span>
+                    <span id="pouch-locked" class="text-red-400 font-mono font-bold">0</span>
+                    <span class="text-[10px] text-slate-500" data-i18n="locked_label">LOCKED</span>
+                </div>
+                
+                <button onclick="toggleCart()" class="pixel-btn pixel-btn-yellow px-3 py-1 text-xs flex items-center gap-1">
+                    <span>🎒</span> <span data-i18n="btn_cart">Shopping Cart</span> (<span id="cart-count">0</span>)
+                </button>
+            </div>
+
+        </div>
+    </header>
+
+    <main class="max-w-6xl mx-auto px-4 mt-8">
+        
+        <div class="flex gap-2 mb-6 border-b-4 border-black pb-2 overflow-x-auto">
+            <button onclick="changeTab('town')" id="tab-town" class="pixel-btn pixel-btn-green px-4 py-2 text-sm pixel-font">
+                <span data-i18n="nav_town">⛺ Town Square (Shop)</span>
+            </button>
+            <button onclick="changeTab('auctions')" id="tab-auctions" class="pixel-btn bg-slate-700 text-slate-300 px-4 py-2 text-sm pixel-font">
+                <span data-i18n="nav_auctions">🔨 Auctions (ประมูล)</span>
+            </button>
+            <button onclick="changeTab('my-quests')" id="tab-my-quests" class="pixel-btn bg-slate-700 text-slate-300 px-4 py-2 text-sm pixel-font">
+                <span data-i18n="nav_my_quests">📜 My Quests (เควสต์ของฉัน)</span>
+            </button>
+            <button onclick="changeTab('guild-merchant')" id="tab-guild-merchant" class="pixel-btn bg-slate-700 text-slate-300 px-4 py-2 text-sm pixel-font">
+                <span data-i18n="nav_guild_merchant">🛡️ Merchant Guild (ผู้ขาย)</span>
+            </button>
+            <button onclick="changeTab('profile')" id="tab-profile" class="pixel-btn bg-slate-700 text-slate-300 px-4 py-2 text-sm pixel-font">
+                <span data-i18n="nav_profile">👤 Profile (สถานะตัวละคร)</span>
+            </button>
+        </div>
+
+        <section id="sect-town" class="tab-content">
+            <div class="mb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-800 p-4 pixel-border">
+                <div>
+                    <h2 class="pixel-font text-lg text-emerald-400" data-i18n="town_title">⛺ จัตุรัสการค้าหลัก (Town Square)</h2>
+                    <p class="text-sm text-slate-300 mt-1" data-i18n="town_description">ซื้อไอเทมทันทีจากสมาคมกิลด์กลาง เงินทองของท่านจะผ่านระบบ escrow ปลอดภัย 100%!</p>
+                </div>
+                <div class="text-xs bg-slate-950 p-2 border border-slate-700 text-emerald-300 rounded">
+                    🛡️ <b class="text-yellow-400" data-i18n="escrow_protected">Escrow Protected:</b> <span data-i18n="escrow_note">เงินปลอดภัยจนกว่าท่านจะกดยอมรับสินค้า!</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6" id="shop-items-container">
+                </div>
+        </section>
+
+        <section id="sect-auctions" class="tab-content hidden">
+            <div class="mb-6 bg-slate-800 p-4 pixel-border border-amber-600">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h2 class="pixel-font text-lg text-amber-400" data-i18n="auction_title">🔨 ลานประมูลระดับตำนาน (Legendary Auction)</h2>
+                        <p class="text-sm text-slate-300 mt-1" data-i18n="auction_description">ประมูลแย่งชิงสมบัติโบราณ! มีระบบ Anti-Sniping ป้องกันการปั่นนาทีสุดท้าย!</p>
+                    </div>
+                    <div class="text-xs bg-slate-950 p-2.5 border border-amber-800 text-amber-300 rounded space-y-1">
+                        <div>⏱️ <b class="text-red-400" data-i18n="anti_sniping_label">Anti-Sniping:</b> <span data-i18n="anti_sniping_text">เคาะช่วง 1 นาทีสุดท้าย จะทดเวลาเพิ่ม 1 นาที</span></div>
+                        <div>🛡️ <b class="text-blue-400" data-i18n="deposit_system_label">Deposit System:</b> <span data-i18n="deposit_system_text">มัดจำ 10% จะคืนให้ทันทีหากท่านโดนเคาะราคาชนะ</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="auction-items-container">
+                </div>
+        </section>
+
+        <section id="sect-my-quests" class="tab-content hidden">
+            <div class="bg-slate-800 p-6 pixel-border">
+                <div class="flex justify-between items-center mb-4 border-b border-slate-700 pb-3">
+                    <h2 class="pixel-font text-lg text-purple-400" data-i18n="quests_title">📜 สมุดบันทึกเควสต์และของรางวัล (My Quests)</h2>
+                    <span class="text-xs bg-slate-900 px-3 py-1 border border-purple-500 rounded text-purple-300" data-i18n="quests_subtitle">ติดตามและยืนยันการรับพัสดุ</span>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="bg-slate-900 p-4 pixel-border-sm">
+                        <h3 class="pixel-font text-xs text-yellow-400 mb-3 border-b border-slate-700 pb-2 flex justify-between items-center">
+                            <span data-i18n="purchased_loot">📦 รายการสั่งซื้อเวทมนตร์ (Purchased Loot)</span>
+                            <span class="text-[10px] text-slate-500 font-mono" data-i18n="escrow_active">Escrow Active</span>
+                        </h3>
+                        <div id="won-items-list" class="space-y-3 text-sm max-h-[450px] overflow-y-auto pr-1">
+                            </div>
+                    </div>
+
+                    <div class="bg-slate-900 p-4 pixel-border-sm flex flex-col justify-between">
+                        <div>
+                            <h3 class="pixel-font text-xs text-cyan-400 mb-3 border-b border-slate-700 pb-2" data-i18n="active_bids">⚔️ เควสต์ที่กำลังเคาะสู้ (Active Bids)</h3>
+                            <div id="active-bids-list" class="space-y-3 text-sm mb-6">
+                                <p class="text-slate-500 text-center py-8" data-i18n="no_active_bids">คุณไม่ได้ร่วมการประมูลใด ๆ ในขณะนี้</p>
+                            </div>
+                        </div>
+
+                        <div class="bg-slate-950 p-3 border-2 border-slate-800 rounded">
+                            <h4 class="pixel-font text-[9px] text-rose-400 mb-1" data-i18n="protection_rules">⚖️ กติกาการปกป้องสิทธิ์ผู้ผจญภัย</h4>
+                            <p class="text-[11px] text-slate-400 leading-relaxed" data-i18n="protection_text">
+                                เมื่อผู้ขายส่งสินค้าด้วย <b>Courier Sprite (เอลฟ์ส่งของ)</b> แล้ว ระบบจะแจ้งเลขพัสดุให้ท่านตรวจสอบ หากของไม่ตรงปก ท่านมีสิทธิ์กดยื่นอุทธรณ์ <span class="text-red-400">[ DISPUTE ]</span> เพื่อระงับเงิน และส่งเรื่องให้สภาเมืองไกล่เกลี่ย
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="sect-guild-merchant" class="tab-content hidden">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                
+                <div class="bg-slate-800 p-4 pixel-border border-yellow-500 md:col-span-1 flex flex-col justify-between">
+                    <div>
+                        <h3 class="pixel-font text-xs text-yellow-400 mb-3 border-b border-slate-700 pb-2" data-i18n="guild_ledger_title">📊 GUILD LEDGER (บัญชีกิลด์)</h3>
+                        
+                        <div class="bg-slate-900 p-3 border-2 border-black rounded mb-4">
+                            <div class="text-[10px] text-slate-400" data-i18n="ledger_income_label">รายได้รอการถอนหลังส่งมอบสำเร็จ:</div>
+                            <div class="text-2xl font-bold text-yellow-400 font-mono mt-1">💰 <span id="ledger-balance">1,800</span> <span class="text-xs" data-i18n="gold_label">GOLD</span></div>
+                        </div>
+
+                        <div class="space-y-2 mb-4">
+                            <span class="text-[10px] text-slate-400" data-i18n="guild_stats_title">สถิติยอดแลกเปลี่ยนกิลด์ประจำสัปดาห์:</span>
+                            <div class="h-20 bg-slate-950 rounded border border-slate-700 flex items-end justify-around p-1 font-mono text-[9px]">
+                                <div class="w-4 bg-emerald-600 h-1/4" title="Mon: 450"></div>
+                                <div class="w-4 bg-emerald-600 h-1/2" title="Tue: 900"></div>
+                                <div class="w-4 bg-emerald-600 h-1/3" title="Wed: 600"></div>
+                                <div class="w-4 bg-emerald-500 h-3/4" title="Thu: 1350"></div>
+                                <div class="w-4 bg-yellow-400 h-full" title="Today"></div>
+                            </div>
+                            <div class="flex justify-around text-[8px] text-slate-500">
+                                <span data-i18n="weekday_mon">จ.</span><span data-i18n="weekday_tue">อ.</span><span data-i18n="weekday_wed">พ.</span><span data-i18n="weekday_thu">พฤ.</span><span data-i18n="weekday_fri">ศ.</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button onclick="cashOutLedger()" class="w-full pixel-btn pixel-btn-yellow py-2 text-xs pixel-font" data-i18n="cash_out_button">
+                        💰 ถอนทองเข้ากระเป๋าหลัก (CASH OUT)
+                    </button>
+                </div>
+
+                <div class="bg-slate-800 p-4 pixel-border border-emerald-600 md:col-span-2">
+                    <h3 class="pixel-font text-xs text-emerald-400 mb-3 border-b border-slate-700 pb-2" data-i18n="seller_management_title">📦 แผงจัดการรายการขายและจัดส่งสินค้า</h3>
+                    <div class="space-y-4 max-h-[350px] overflow-y-auto pr-1" id="seller-active-items-list">
+                        </div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="bg-slate-800 p-5 pixel-border border-slate-600 lg:col-span-1">
+                    <h3 class="pixel-font text-xs text-slate-300 mb-4 border-b border-slate-700 pb-2" data-i18n="merchant_status_title">📇 MERCHANT STATUS</h3>
+                    
+                    <div class="text-center py-4 bg-slate-900 border-2 border-black rounded mb-4">
+                        <div id="merchant-avatar-display" class="w-20 h-20 mx-auto rounded bg-slate-950 border-2 border-yellow-500 overflow-hidden flex items-center justify-center text-4xl mb-2">
+                            🧑‍🚀
+                        </div>
+                        <div class="flex justify-center items-center gap-1">
+                            <span id="merchant-name-display" class="font-bold text-lg text-emerald-300">นักผจญภัยมือใหม่</span>
+                            <span title="ยืนยันตัวตนแล้ว (Verified)" class="text-emerald-400 text-sm">🛡️</span>
+                        </div>
+                        <span class="text-[10px] bg-emerald-950 text-emerald-400 border border-emerald-500 px-2 py-0.5 rounded font-bold uppercase" data-i18n="merchant_verified_label">Verified Merchant</span>
+                    </div>
+
+                    <div class="space-y-2.5 text-xs">
+                        <div class="flex justify-between bg-slate-900 p-2 rounded">
+                            <span class="text-slate-400">ชื่อเสียง (Reputation):</span>
+                            <span class="text-rose-400 font-bold flex gap-0.5">
+                                💖💖💖💖💖 <span class="text-white ml-1">(98%)</span>
+                            </span>
+                        </div>
+                        <div class="flex justify-between bg-slate-900 p-2 rounded">
+                            <span class="text-slate-400">การค้าสำเร็จ (Trades):</span>
+                            <span class="text-yellow-400 font-bold">142 เควสต์สำเร็จ</span>
+                        </div>
+                        <div class="flex justify-between bg-slate-900 p-2 rounded">
+                            <span class="text-slate-400" data-i18n="speed_label">จัดส่งเฉลี่ย (Speed):</span>
+                            <span class="text-blue-400 font-bold" data-i18n="speed_fast">Fast (&lt; 24 ชม.)</span>
+                        </div>
+                        <div class="flex justify-between bg-slate-900 p-2 rounded">
+                            <span class="text-slate-400" data-i18n="kyc_name_label">ชื่อจริงจดทะเบียน (KYC):</span>
+                            <span id="merchant-realname-display" class="text-emerald-400 font-bold">นาย สมศักดิ์ รักดี</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-800 p-5 pixel-border border-slate-600 lg:col-span-2">
+                    <h3 class="pixel-font text-xs text-purple-400 mb-4 border-b border-slate-700 pb-2" data-i18n="add_item_title">🎒 เพิ่มสมบัติเข้าระบบประมูล/ขายตรง (Register New Item)</h3>
+                    
+                    <div class="space-y-4 text-sm">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1" data-i18n="new_item_name_label">ชื่อไอเทม/สินค้า</label>
+                                <input type="text" id="new-item-name" placeholder="เช่น ดาบไม้ก๊อกแห่งสายลม" data-i18n-placeholder="new_item_name_placeholder" class="w-full bg-slate-900 border-2 border-slate-700 p-2 rounded text-white text-xs">
+                            </div>
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1" data-i18n="new_item_price_label">ราคาเริ่มต้น (GOLD)</label>
+                                <input type="number" id="new-item-price" placeholder="100" data-i18n-placeholder="new_item_price_placeholder" class="w-full bg-slate-900 border-2 border-slate-700 p-2 rounded text-white text-xs">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-1" data-i18n="new_item_lore_label">ตำนานประวัติไอเทม (Item Lore / Description)</label>
+                            <textarea id="new-item-lore" rows="2" placeholder="ใส่ประวัติความเป็นมาเพื่อดึงดูดนักผจญภัยมาจับจอง..." data-i18n-placeholder="new_item_lore_placeholder" class="w-full bg-slate-900 border-2 border-slate-700 p-2 rounded text-white text-xs"></textarea>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs text-slate-400 mb-2" data-i18n="item_media_label">📸 ติดตั้งสื่อจริงเพื่อดึงดูดสายตา (Equip Media)</label>
+                            <div id="dropzone" class="border-2 border-dashed border-slate-600 hover:border-yellow-500 bg-slate-900 p-5 text-center cursor-pointer transition-colors relative" onclick="triggerFileUpload()">
+                                <input type="file" id="media-file" class="hidden" accept="image/*" onchange="handleFileSelect(event)">
+                                <div class="text-3xl mb-1">📦</div>
+                                <span class="pixel-font text-[9px] text-slate-300 block" data-i18n="dropzone_text">DROP ITEM HERE</span>
+                                <span class="text-xs text-slate-500" data-i18n="dropzone_subtext">หรือคลิกเพื่อเลือกไฟล์รูปภาพจริงจากเครื่องของท่าน</span>
+                            </div>
+
+                            <div id="upload-progress-container" class="mt-3 hidden">
+                                <div class="flex justify-between text-xs text-slate-400 mb-1">
+                                    <span data-i18n="upload_scanning_text">กำลังสแกนไอเทมเวทมนตร์ (Uploading)...</span>
+                                    <span id="upload-percent">0%</span>
+                                </div>
+                                <div class="w-full bg-slate-950 h-3 border border-black rounded overflow-hidden">
+                                    <div id="upload-bar" class="h-full bg-emerald-500" style="width: 0%;"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div>
+                            <span class="block text-xs text-slate-400 mb-1" data-i18n="equipped_slots_label">รูปไอเทมที่ติดตั้งในกระเป๋าหลัก (Equipped Slots)</span>
+                            <div class="flex gap-2" id="slot-previews">
+                                <div class="w-12 h-12 bg-slate-950 border-2 border-slate-800 rounded flex items-center justify-center text-xl text-slate-600">🛡️</div>
+                                <div class="w-12 h-12 bg-slate-950 border-2 border-slate-800 rounded flex items-center justify-center text-xl text-slate-600">🗡️</div>
+                                <div class="w-12 h-12 bg-slate-950 border-2 border-slate-800 rounded flex items-center justify-center text-xl text-slate-600">🧪</div>
+                                <div class="w-12 h-12 bg-slate-950 border-2 border-slate-800 rounded flex items-center justify-center text-xl text-slate-600">🪄</div>
+                            </div>
+                        </div>
+
+                        <div class="flex gap-2">
+                            <button onclick="registerNewItem('shop')" class="flex-1 pixel-btn pixel-btn-green py-2 text-xs pixel-font" data-i18n="sell_button">⛺ ส่งลงขายหน้าร้าน</button>
+                            <button onclick="registerNewItem('auction')" class="flex-1 pixel-btn pixel-btn-purple py-2 text-xs pixel-font" data-i18n="auction_button">🔨 ส่งเข้าลานประมูล</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-slate-800 p-5 pixel-border border-yellow-500 mt-8">
+                <h3 class="pixel-font text-xs text-yellow-400 mb-4 border-b border-slate-700 pb-2" data-i18n="guild_settings_title">🪙 MERCHANT GUILD SETTINGS (ตั้งค่าบัญชีรับเงินสมาคมพ่อค้า)</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 text-sm">
+                    <div class="bg-slate-900 p-4 rounded border border-slate-700 space-y-3">
+                        <div class="text-xs text-slate-400 font-bold uppercase flex items-center gap-1.5">
+                            <span class="text-yellow-400">🔒</span> <span data-i18n="merchant_identity_label">บัญชีสมาคมพ่อค้า (Identity Verification)</span>
+                        </div>
+                        <p class="text-xs text-slate-300 leading-relaxed" data-i18n="merchant_identity_text">
+                            สภาเมืองได้ผูกข้อมูลชื่อร้านและตราผู้ขายให้ตรงกับบัญชีผู้เล่นตัวจริงอย่างถาวร เพื่อให้ผู้ซื้อเกิดความน่าเชื่อถือ มั่นใจได้ว่าไม่มีการปลอมตัวตน
+                        </p>
+                        <div class="text-xs bg-slate-950 p-2.5 rounded border border-slate-800 space-y-2">
+                            <div><span class="text-slate-500" data-i18n="display_name_label">ชื่อร้านที่แสดง:</span> <span id="settings-merchant-display-name" class="text-emerald-300 font-bold">นักผจญภัยมือใหม่</span></div>
+                            <div class="text-[10px] text-slate-400 leading-normal font-mono" data-i18n="merchant_name_note">*หากต้องการเปลี่ยนชื่อร้าน โปรดไปแก้ไขชื่อตัวละครหลักที่หน้า Profile (ประวัติ)*</div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-900 p-4 rounded border border-slate-700 space-y-3 md:col-span-2">
+                        <div class="text-xs text-slate-400 font-bold uppercase flex items-center gap-1.5">
+                            <span class="text-cyan-400">🏦</span> <span data-i18n="payout_vault_label">PAYOUT VAULT (คลังเก็บเหรียญกิลด์)</span>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs text-slate-400 mb-1 font-semibold" data

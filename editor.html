@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+     <script>
+  // 請把下面的網址換成你在第三步產生的實際 Railway 網址，後面記得補上 /api
+  window.PIXEL_LOOT_API_BASE_URL = pixel-loot-backend-production.up.railway.app;
+</script>
+<script src="config.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Loot - 視覺化網頁編輯器</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Sarabun:wght@300;400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { font-family: 'Sarabun', sans-serif; }
+        .pixel-font { font-family: 'Press Start 2P', cursive; }
+        body { background-color: #0f1319; color: #f1f5f9; }
+        .pixel-box { border: 3px solid #000; background: #1e2530; box-shadow: 4px 4px 0 rgba(0,0,0,0.7); }
+        .pixel-btn { border: 3px solid #000; box-shadow: 3px 3px 0 #000; background: #4f46e5; color: white; cursor: pointer; transition: all 0.1s; }
+        .pixel-btn:hover { background: #4338ca; }
+        .pixel-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #000; }
+        .panel { height: calc(100vh - 120px); overflow-y: auto; }
+        .editor-container { display: grid; grid-template-columns: 250px 1fr 350px; gap: 8px; height: 100%; }
+        .component-item { padding: 8px; margin: 4px; background: #2d3748; border: 2px solid #4f46e5; cursor: grab; }
+        .component-item:active { cursor: grabbing; }
+        .canvas-item { 
+            position: relative; padding: 12px; margin: 8px; background: #1e2530; border: 2px dashed #4f46e5; 
+            cursor: move; transition: all 0.2s;
+        }
+        .canvas-item.selected { border: 2px solid #fbbf24; background: #2d3748; }
+        .canvas-item:hover { border-color: #fbbf24; }
+        .delete-btn { position: absolute; top: 2px; right: 2px; width: 20px; height: 20px; background: #ef4444; color: white; border: none; cursor: pointer; font-size: 12px; }
+        .tab-btn { padding: 8px 12px; margin: 4px; background: #2d3748; border: 2px solid #4f46e5; cursor: pointer; }
+        .tab-btn.active { background: #4f46e5; color: white; }
+        .code-editor { width: 100%; height: 300px; background: #0f1319; color: #4ade80; border: 2px solid #4f46e5; padding: 8px; font-family: 'Courier New', monospace; font-size: 12px; resize: none; }
+        .preview { width: 100%; height: 400px; background: white; border: 2px solid #4f46e5; }
+        .property-input { width: 100%; padding: 6px; margin: 4px 0; background: #1e2530; border: 2px solid #4f46e5; color: #f1f5f9; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+    <!-- Header -->
+    <div class="pixel-box p-4 flex justify-between items-center">
+        <div class="pixel-font text-sm" style="color: #fbbf24;">🎨 視覺化編輯器</div>
+        <div class="flex gap-2">
+            <button class="pixel-btn px-4 py-2" onclick="saveDesign()">💾 保存設計</button>
+            <button class="pixel-btn px-4 py-2" onclick="loadDesign()">📂 載入設計</button>
+            <button class="pixel-btn px-4 py-2" onclick="exportHTML()">📤 匯出 HTML</button>
+            <button class="pixel-btn px-4 py-2" onclick="goBack()">↩️ 返回</button>
+        </div>
+    </div>
+
+    <!-- Main Editor Container -->
+    <div class="editor-container p-2 flex-1">
+        <!-- Left Panel: Components -->
+        <div class="pixel-box p-3">
+            <div class="pixel-font text-xs mb-3" style="color: #60a5fa;">組件庫</div>
+            <div class="panel">
+                <!-- Text Components -->
+                <div style="color: #94a3b8; font-size: 11px; font-weight: bold; margin: 8px 0 4px;">📝 文字</div>
+                <div class="component-item" draggable="true" ondragstart="dragStart(event, 'h1')">標題 1</div>
+                <div class="component-item" draggable="true" ondragstart="dragStart(event, 'h2')">標題 2</div>
+                <div class="component-item" draggable="true" ondragstart="dragStart(event, 'p')">段落文本</div>
+
+                <!-- Form Components -->
+                <div style="color: #94a3b8; font-size: 11px; font-weight: bold; margin: 8px 0 4px;">⚙️ 表單</div>
+                <div class="component-item" draggable="true" ondragstart="dragStart(event, 'input-text')">文字輸入</div>
+                <div class="component-item" draggable="true" ondragstart="dragStart(event, 'input-email')">郵件輸入</div>
+                <div class="component-item" draggable="true" ondragstart="dragStart(event, 'input-number')">數字輸入</div>
+                <div class="component-item" draggable="true" ondragstart="dragStart(event, 'textarea')">文本區域</div>
+                <div class="component-item" draggable="true" ondragstart="dragStart(event, 'select')">下拉選單</div>
+                <div class="component-item" draggable="true" ondragstart="dragStart(event, 'checkbox')">核取方塊</div>
+                <div class="component-item" draggable="true" ondragstart="dragStart(event, 'radio')">單選按鈕</div>
+                <div class="component-item" draggable="true" ondragstart="dragStart(event, 'button')">按鈕</div>
+
+                <!-- Layout Components -->
+                <div style="color: #94a3b8; font-size: 11px; font-weight: bold; margin: 8px 0 4px;">📦 版面</div>
+                <div class="component-item" draggable="true" ondragstart="dragStart(event, 'div')">容器</div>
+                <div class="component-item" draggable="true" ondragstart="dragStart(event, 'hr')">分隔線</div>
+                <div class="component-item" draggable="true" ondragstart="dragStart(event, 'img')">圖片</div>
+
+                <!-- Media Components -->
+                <div style="color: #94a3b8; font-size: 11px; font-weight: bold; margin: 8px 0 4px;">🎬 媒體</div>
+                <div class="component-item" draggable="true" ondragstart="dragStart(event, 'table')">表格</div>
+                <div class="component-item" draggable="true" ondragstart="dragStart(event, 'list')">列表</div>
+            </div>
+        </div>
+
+        <!-- Middle Panel: Canvas -->
+        <div class="pixel-box p-3 flex flex-col">
+            <div class="pixel-font text-xs mb-2" style="color: #60a5fa;">📐 畫布</div>
+            <div id="canvas" class="panel" style="background: white; border: 2px solid #4f46e5;" ondrop="dropComponent(event)" ondragover="allowDrop(event)">
+                <div style="color: #999; text-align: center; padding: 20px;">拖放組件到這裡</div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Properties & Code -->
+        <div class="pixel-box p-3 flex flex-col">
+            <div class="flex gap-2 mb-2">
+                <button class="tab-btn active" onclick="switchTab('properties')">⚙️ 屬性</button>
+                <button class="tab-btn" onclick="switchTab('code')">{'{'} 代碼</button>
+                <button class="tab-btn" onclick="switchTab('preview')">👁️ 預覽</button>
+            </div>
+
+            <!-- Properties Tab -->
+            <div id="properties-tab" class="panel">
+                <div id="properties-panel">
+                    <div style="color: #999; text-align: center; padding: 20px;">選擇元素查看屬性</div>
+                </div>
+            </div>
+
+            <!-- Code Tab -->
+            <div id="code-tab" class="panel" style="display: none;">
+                <div style="color: #94a3b8; font-size: 10px; margin-bottom: 4px;">HTML 代碼</div>
+                <textarea id="html-code" class="code-editor" onchange="updateFromCode()"></textarea>
+                <button class="pixel-btn w-full mt-2 py-1" onclick="updateFromCode()">✅ 應用代碼</button>
+            </div>
+
+            <!-- Preview Tab -->
+            <div id="preview-tab" class="panel" style="display: none;">
+                <div style="color: #94a3b8; font-size: 10px; margin-bottom: 4px;">實時預覽</div>
+                <iframe id="preview-frame" class="preview" style="border: 2px solid #4f46e5;"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedElement = null;
+        let components = [];
+        let elementIdCounter = 0;
+
+        // 拖放功能
+        function dragStart(event, type) {
+            event.dataTransfer.effectAllowed = 'copy';
+            event.dataTransfer.setData('component-type', type);
+        }
+
+        function allowDrop(event) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'copy';
+        }
+
+        function dropComponent(event) {
+            event.preventDefault();
+            const type = event.dataTransfer.getData('component-type');
+            addComponent(type, event.clientX, event.clientY);
+        }
+
+        // 生成 HTML 元素
+        function getComponentHTML(type) {
+            const templates = {
+                'h1': '<h1 class="text-2xl font-bold">標題文本</h1>',
+                'h2': '<h2 class="text-xl font-bold">副標題</h2>',
+                'p': '<p class="text-base">段落內容</p>',
+                'input-text': '<input type="text" placeholder="輸入文字" class="px-2 py-1 border">',
+                'input-email': '<input type="email" placeholder="電郵" class="px-2 py-1 border">',
+                'input-number': '<input type="number" placeholder="數字" class="px-2 py-1 border">',
+                'textarea': '<textarea placeholder="輸入文本..." class="px-2 py-1 border w-full"></textarea>',
+                'select': '<select class="px-2 py-1 border"><option>選擇</option><option>選項 1</option></select>',
+                'checkbox': '<input type="checkbox"> <label>選項</label>',
+                'radio': '<input type="radio" name="group"> <label>選項</label>',
+                'button': '<button class="bg-blue-500 text-white px-4 py-2">按鈕</button>',
+                'div': '<div class="p-4 border border-dashed" style="min-height: 100px;">容器</div>',
+                'hr': '<hr class="my-2">',
+                'img': '<img src="https://via.placeholder.com/200" alt="圖片" class="max-w-full">',
+                'table': '<table class="border-collapse w-full"><tr><td class="border">儲存格 1</td><td class="border">儲存格 2</td></tr></table>',
+                'list': '<ul class="list-disc pl-5"><li>項目 1</li><li>項目 2</li></ul>'
+            };
+            return templates[type] || `<div>${type}</div>`;
+        }
+
+        // 添加組件到畫布
+        function addComponent(type, x, y) {
+            const id = `elem-${elementIdCounter++}`;
+            const element = document.createElement('div');
+            element.id = id;
+            element.className = 'canvas-item';
+            element.innerHTML = getComponentHTML(type);
+            element.innerHTML += `<button class="delete-btn" onclick="deleteElement('${id}')">✕</button>`;
+            element.onclick = () => selectElement(element, id, type);
+            
+            document.getElementById('canvas').appendChild(element);
+            components.push({ id, type, html: element.innerHTML });
+            selectElement(element, id, type);
+        }
+
+        // 選擇元素
+        function selectElement(element, id, type) {
+            if (selectedElement) selectedElement.classList.remove('selected');
+            element.classList.add('selected');
+            selectedElement = element;
+            showProperties(id, type);
+            updatePreview();
+        }
+
+        // 刪除元素
+        function deleteElement(id) {
+            const elem = document.getElementById(id);
+            if (elem) elem.remove();
+            components = components.filter(c => c.id !== id);
+            selectedElement = null;
+            updatePreview();
+        }
+
+        // 顯示屬性面板
+        function showProperties(id, type) {
+            const html = `
+                <div style="font-size: 11px; color: #60a5fa; margin-bottom: 10px;">
+                    <strong>類型:</strong> ${type}
+                </div>
+                <div style="margin-bottom: 12px;">
+                    <label style="display: block; margin-bottom: 4px; color: #94a3b8; font-size: 11px;">文本內容</label>
+                    <input type="text" id="elem-text" class="property-input" placeholder="輸入文本" value="">
+                    <button class="pixel-btn w-full mt-2 py-1 text-xs" onclick="updateElementText()">✅ 更新</button>
+                </div>
+                <div style="margin-bottom: 12px;">
+                    <label style="display: block; margin-bottom: 4px; color: #94a3b8; font-size: 11px;">CSS 類別</label>
+                    <input type="text" id="elem-class" class="property-input" placeholder="如: text-red-500 font-bold">
+                    <button class="pixel-btn w-full mt-2 py-1 text-xs" onclick="updateElementClass()">✅ 應用</button>
+                </div>
+                <div style="margin-bottom: 12px;">
+                    <label style="display: block; margin-bottom: 4px; color: #94a3b8; font-size: 11px;">背景色</label>
+                    <input type="color" id="elem-bg" class="w-full" value="#1e2530">
+                    <button class="pixel-btn w-full mt-2 py-1 text-xs" onclick="updateElementBg()">✅ 應用</button>
+                </div>
+                <div style="margin-bottom: 12px;">
+                    <label style="display: block; margin-bottom: 4px; color: #94a3b8; font-size: 11px;">寬度 (px)</label>
+                    <input type="number" id="elem-width" class="property-input" placeholder="自動">
+                    <button class="pixel-btn w-full mt-2 py-1 text-xs" onclick="updateElementSize()">✅ 應用</button>
+                </div>
+            `;
+            document.getElementById('properties-panel').innerHTML = html;
+        }
+
+        // 更新元素文本
+        function updateElementText() {
+            if (!selectedElement) return;
+            const text = document.getElementById('elem-text').value;
+            const elem = selectedElement.querySelector('h1, h2, p, button, label, div');
+            if (elem && elem.tagName !== 'INPUT') elem.textContent = text;
+            updatePreview();
+        }
+
+        // 更新元素類別
+        function updateElementClass() {
+            if (!selectedElement) return;
+            const className = document.getElementById('elem-class').value;
+            selectedElement.className = 'canvas-item selected ' + className;
+            updatePreview();
+        }
+
+        // 更新背景色
+        function updateElementBg() {
+            if (!selectedElement) return;
+            const color = document.getElementById('elem-bg').value;
+            selectedElement.style.backgroundColor = color;
+            updatePreview();
+        }
+
+        // 更新大小
+        function updateElementSize() {
+            if (!selectedElement) return;
+            const width = document.getElementById('elem-width').value;
+            if (width) selectedElement.style.width = width + 'px';
+            updatePreview();
+        }
+
+        // 切換標籤
+        function switchTab(tab) {
+            document.querySelectorAll('[id*="-tab"]').forEach(t => t.style.display = 'none');
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            
+            document.getElementById(tab + '-tab').style.display = 'block';
+            event.target.classList.add('active');
+
+            if (tab === 'code') {
+                document.getElementById('html-code').value = document.getElementById('canvas').innerHTML;
+            }
+            if (tab === 'preview') {
+                updatePreview();
+            }
+        }
+
+        // 從代碼更新
+        function updateFromCode() {
+            const code = document.getElementById('html-code').value;
+            document.getElementById('canvas').innerHTML = code;
+            components = [];
+            updatePreview();
+        }
+
+        // 實時預覽
+        function updatePreview() {
+            const html = document.getElementById('canvas').innerHTML;
+            const preview = document.getElementById('preview-frame');
+            const doc = preview.contentDocument || preview.contentWindow.document;
+            doc.open();
+            doc.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="UTF-8">
+                    <script src="https://cdn.tailwindcss.com"><\/script>
+                </head>
+                <body style="padding: 20px; background: white;">
+                    ${html}
+                </body>
+                </html>
+            `);
+            doc.close();
+        }
+
+        // 保存設計
+        function saveDesign() {
+            const design = {
+                name: prompt('設計名稱:') || 'design_' + Date.now(),
+                html: document.getElementById('canvas').innerHTML,
+                timestamp: new Date().toISOString()
+            };
+            const designs = JSON.parse(localStorage.getItem('editor-designs') || '[]');
+            designs.push(design);
+            localStorage.setItem('editor-designs', JSON.stringify(designs));
+            alert('✅ 設計已保存: ' + design.name);
+        }
+
+        // 載入設計
+        function loadDesign() {
+            const designs = JSON.parse(localStorage.getItem('editor-designs') || '[]');
+            if (designs.length === 0) {
+                alert('❌ 沒有保存的設計');
+                return;
+            }
+            const names = designs.map((d, i) => `${i+1}. ${d.name}`).join('\n');
+            const index = prompt(`選擇設計:\n${names}`) - 1;
+            if (index >= 0 && designs[index]) {
+                document.getElementById('canvas').innerHTML = designs[index].html;
+                updatePreview();
+            }
+        }
+
+        // 匯出 HTML
+        function exportHTML() {
+            const html = document.getElementById('canvas').innerHTML;
+            const fullHTML = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"><\/script>
+</head>
+<body>
+    ${html}
+</body>
+</html>`;
+            const blob = new Blob([fullHTML], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'design_' + Date.now() + '.html';
+            a.click();
+        }
+
+        // 返回
+        function goBack() {
+            window.location.href = 'library.html';
+        }
+
+        // 初始化
+        document.getElementById('canvas').innerHTML = '<div style="color: #999; text-align: center; padding: 20px;">拖放組件到這裡開始設計</div>';
+    </script>
+</body>
+</html>
